@@ -1,6 +1,7 @@
 import { PublicKey } from "@solana/web3.js";
 import { homedir } from "os";
 import path from "path";
+import { KeypairPath, RpcPath } from "./types";
 
 export const MAX_AMOUNT = 999_999_999;
 
@@ -19,3 +20,15 @@ export const keypairPath3 = path.join(configDir3, "keypair.json");
 export const rpcPath1 = path.join(configDir1, "rpc.txt");
 export const rpcPath2 = path.join(configDir2, "rpc.txt");
 export const rpcPath3 = path.join(configDir3, "rpc.txt");
+
+export const rpcPaths: RpcPath = {
+  "Profile 1": rpcPath1,
+  "Profile 2": rpcPath2,
+  "Profile 3": rpcPath3,
+};
+
+export const keypairPaths: KeypairPath = {
+  "Profile 1": keypairPath1,
+  "Profile 2": keypairPath2,
+  "Profile 3": keypairPath3,
+};

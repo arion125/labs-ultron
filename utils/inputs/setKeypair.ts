@@ -1,11 +1,12 @@
 import { Keypair, PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
-import { existsSync, outputFileSync } from "fs-extra";
+import { chmodSync, existsSync, outputFileSync } from "fs-extra";
 import inquirer, { QuestionCollection } from "inquirer";
 import {
   keypairPath1,
   keypairPath2,
   keypairPath3,
+  keypairPaths,
 } from "../../common/constants";
 import StateManager from "../../src/StateManager";
 import { encrypt } from "../crypto";
@@ -79,16 +80,10 @@ export const setKeypair = () => {
             keypair.secretKey,
             answers.userSecret
           );
-          const keypairPath =
-            profile === "Profile 1"
-              ? keypairPath1
-              : profile === "Profile 2"
-              ? keypairPath2
-              : profile === "Profile 3"
-              ? keypairPath3
-              : "";
+          const keypairPath = keypairPaths[profile] || "";
 
           outputFileSync(keypairPath, JSON.stringify(encryptedKeypair));
+          chmodSync(keypairPath, 0o400);
 
           return true;
         }

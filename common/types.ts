@@ -56,3 +56,11 @@ export type EncryptedData = {
   content: string;
   tag: string;
 };
+
+export type RpcPath = {
+  [key: string]: string;
+};
+
+export type KeypairPath = {
+  [key: string]: string;
+};

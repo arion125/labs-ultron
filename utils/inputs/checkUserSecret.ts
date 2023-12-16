@@ -1,11 +1,7 @@
 import { Keypair, PublicKey } from "@solana/web3.js";
 import { readFileSync } from "fs-extra";
 import inquirer from "inquirer";
-import {
-  keypairPath1,
-  keypairPath2,
-  keypairPath3,
-} from "../../common/constants";
+import { keypairPaths } from "../../common/constants";
 import { EncryptedData } from "../../common/types";
 import StateManager from "../../src/StateManager";
 import { decrypt } from "../crypto";
@@ -18,14 +14,7 @@ export const checkUserSecret = () => {
       name: "userSecret",
       message: "Enter your password to start:",
       validate: (input) => {
-        const keypairPath =
-          profile === "Profile 1"
-            ? keypairPath1
-            : profile === "Profile 2"
-            ? keypairPath2
-            : profile === "Profile 3"
-            ? keypairPath3
-            : "";
+        const keypairPath = keypairPaths[profile] || "";
 
         const encryptedKeypair = JSON.parse(
           readFileSync(keypairPath).toString()

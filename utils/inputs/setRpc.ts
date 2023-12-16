@@ -1,6 +1,6 @@
-import { existsSync, outputFileSync } from "fs-extra";
+import { chmodSync, existsSync, outputFileSync } from "fs-extra";
 import inquirer from "inquirer";
-import { rpcPath1, rpcPath2, rpcPath3 } from "../../common/constants";
+import { rpcPath1, rpcPath2, rpcPath3, rpcPaths } from "../../common/constants";
 import StateManager from "../../src/StateManager";
 
 export const setRpc = () => {
@@ -22,16 +22,10 @@ export const setRpc = () => {
         try {
           const rpc = new URL(input);
 
-          const rpcPath =
-            profile === "Profile 1"
-              ? rpcPath1
-              : profile === "Profile 2"
-              ? rpcPath2
-              : profile === "Profile 3"
-              ? rpcPath3
-              : "";
+          const rpcPath = rpcPaths[profile] || "";
 
           outputFileSync(rpcPath, rpc.toString());
+          chmodSync(rpcPath, 0o600);
           return true;
         } catch (e) {
           return "Wrong rpc url, please retry again";
