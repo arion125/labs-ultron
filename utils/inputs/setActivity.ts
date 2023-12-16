@@ -1,0 +1,18 @@
+import inquirer from "inquirer";
+
+export const setActivity = async (): Promise<string> => {
+  const activites = ["Mining", "Cargo"];
+
+  const answer = await inquirer.prompt([
+    {
+      type: "list",
+      name: "activity",
+      message: "Choose which activity you want to start:",
+      choices: activites,
+    },
+  ]);
+
+  const activity = answer.activity;
+
+  return activity;
+};
