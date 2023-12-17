@@ -1,7 +1,16 @@
 import inquirer from "inquirer";
 
 export const setMovementType = async (): Promise<string> => {
-  const movements = ["Subwarp", "Warp - only for one-shot travel (alpha)"];
+  const movements = [
+    {
+      name: "Subwarp",
+      value: "subwarp",
+    },
+    {
+      name: "Warp - only for one-shot travel (alpha)",
+      value: "warp",
+    },
+  ];
 
   const answer = await inquirer.prompt([
     {

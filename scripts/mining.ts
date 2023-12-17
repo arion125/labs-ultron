@@ -67,15 +67,11 @@ export const mining = async (fleet: Fleet, position: SectorCoordinates) => {
         miningTimeAndResourcesAmount.food
       );
       await actionWrapper(undockFromStarbase, fleetPubkey);
-      if (starbase && distanceCoords && movementType == "Subwarp") {
+      if (starbase && distanceCoords && movementType == "subwarp") {
         await actionWrapper(subwarpToSector, fleetPubkey, distanceCoords);
         await actionWrapper(exitSubwarp, fleetPubkey);
       }
-      if (
-        starbase &&
-        distanceCoords &&
-        movementType == "Warp - only for one-shot travel (alpha)"
-      ) {
+      if (starbase && distanceCoords && movementType == "warp") {
         await actionWrapper(warpToSector, fleetPubkey, distanceCoords, false);
         await actionWrapper(exitWarp, fleetPubkey);
       }
@@ -86,7 +82,7 @@ export const mining = async (fleet: Fleet, position: SectorCoordinates) => {
         miningTimeAndResourcesAmount.timeInSeconds
       );
       await actionWrapper(stopMining, fleetPubkey, resourceToMine);
-      if (starbase && reverseDistanceCoords && movementType == "Subwarp") {
+      if (starbase && reverseDistanceCoords && movementType == "subwarp") {
         await actionWrapper(
           subwarpToSector,
           fleetPubkey,
@@ -94,7 +90,7 @@ export const mining = async (fleet: Fleet, position: SectorCoordinates) => {
         );
         await actionWrapper(exitSubwarp, fleetPubkey);
       }
-      if (starbase && reverseDistanceCoords && movementType == "Warp") {
+      if (starbase && reverseDistanceCoords && movementType == "warp") {
         await actionWrapper(
           warpToSector,
           fleetPubkey,
