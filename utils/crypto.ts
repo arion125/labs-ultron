@@ -1,5 +1,5 @@
 import { Keypair } from "@solana/web3.js";
-import crypto from "crypto";
+import crypto, { randomFillSync } from "crypto";
 import { EncryptedData } from "../common/types";
 
 const ALGORITHM = "aes-256-gcm";
@@ -53,8 +53,10 @@ export const encrypt = (keypair: Keypair, secret: Buffer): CryptoResult => {
   try {
     const salt = crypto.randomBytes(SALT_LENGTH);
     const hash = crypto.pbkdf2Sync(secret, salt, ITERATIONS, KEY_SIZE, DIGEST);
+    validateCryptoInputs(hash);
     const iv = crypto.randomBytes(IV_LENGTH);
     const cipher = crypto.createCipheriv(ALGORITHM, hash, iv);
+    randomFillSync(hash);
 
     let encrypted = cipher.update(Buffer.from(keypair.secretKey));
     encrypted = Buffer.concat([encrypted, cipher.final()]);
@@ -85,6 +87,7 @@ export const decrypt = (
     const authTag = Buffer.from(encryptedKeypair.tag, "hex");
 
     const hash = crypto.pbkdf2Sync(secret, salt, ITERATIONS, KEY_SIZE, DIGEST);
+    validateCryptoInputs(hash);
 
     const decipher = crypto.createDecipheriv(ALGORITHM, hash, iv);
     decipher.setAuthTag(authTag);
@@ -92,6 +95,12 @@ export const decrypt = (
     let decrypted = decipher.update(encryptedText);
 
     decrypted = Buffer.concat([decrypted, decipher.final()]);
+
+    randomFillSync(salt);
+    randomFillSync(hash);
+    randomFillSync(iv);
+    randomFillSync(encryptedText);
+    randomFillSync(authTag);
 
     return { type: "Success" as const, result: decrypted };
   } catch (error) {
