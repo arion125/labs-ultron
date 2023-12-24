@@ -104,7 +104,6 @@ export const decrypt = (
 
     return { type: "Success" as const, result: decrypted };
   } catch (error) {
-    console.error("Decryption failed:", error);
     return { type: "DecryptionFailed" as const };
   }
 };

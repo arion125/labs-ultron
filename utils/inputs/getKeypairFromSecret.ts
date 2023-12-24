@@ -13,7 +13,8 @@ export const getKeypairFromSecret = async (
       validate: (input) => {
         const secret = Buffer.from(input);
         const keypair = decryptKeypair(secret, profile);
-        if (keypair.type !== "Success") return "Wrong password, please retry";
+        if (keypair.type !== "Success")
+          return "Wrong password or incorrect keypair, please retry";
         return true;
       },
     },
