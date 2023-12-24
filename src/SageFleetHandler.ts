@@ -125,7 +125,9 @@ export class SageFleetHandler {
     const ixs: InstructionReturn[] = [];
 
     // Check connection and game state
-    const connectionAndGameState = await checkConnectionAndGameState();
+    const connectionAndGameState = await checkConnectionAndGameState(
+      this._gameHandler
+    );
     if (connectionAndGameState.type !== "Success")
       return connectionAndGameState;
 
@@ -183,7 +185,9 @@ export class SageFleetHandler {
     const ixs: InstructionReturn[] = [];
 
     // Check connection and game state
-    const connectionAndGameState = await checkConnectionAndGameState();
+    const connectionAndGameState = await checkConnectionAndGameState(
+      this._gameHandler
+    );
     if (connectionAndGameState.type !== "Success")
       return connectionAndGameState;
 
@@ -240,7 +244,9 @@ export class SageFleetHandler {
     const ixs: InstructionReturn[] = [];
 
     // Check connection and game state
-    const connectionAndGameState = await checkConnectionAndGameState();
+    const connectionAndGameState = await checkConnectionAndGameState(
+      this._gameHandler
+    );
     if (connectionAndGameState.type !== "Success")
       return connectionAndGameState;
 
@@ -310,7 +316,9 @@ export class SageFleetHandler {
     const ixs: InstructionReturn[] = [];
 
     // Check connection and game state
-    const connectionAndGameState = await checkConnectionAndGameState();
+    const connectionAndGameState = await checkConnectionAndGameState(
+      this._gameHandler
+    );
     if (connectionAndGameState.type !== "Success")
       return connectionAndGameState;
 
@@ -461,7 +469,9 @@ export class SageFleetHandler {
     const ixs: InstructionReturn[] = [];
 
     // Check connection and game state
-    const connectionAndGameState = await checkConnectionAndGameState();
+    const connectionAndGameState = await checkConnectionAndGameState(
+      this._gameHandler
+    );
     if (connectionAndGameState.type !== "Success")
       return connectionAndGameState;
 
@@ -596,7 +606,9 @@ export class SageFleetHandler {
     const ixs: InstructionReturn[] = [];
 
     // Check connection and game state
-    const connectionAndGameState = await checkConnectionAndGameState();
+    const connectionAndGameState = await checkConnectionAndGameState(
+      this._gameHandler
+    );
     if (connectionAndGameState.type !== "Success")
       return connectionAndGameState;
 
@@ -708,7 +720,9 @@ export class SageFleetHandler {
   async ixRefuelFleet(fleetPubkey: PublicKey, amount: number) {
     const ixs: InstructionReturn[] = [];
 
-    const connectionAndGameState = await checkConnectionAndGameState();
+    const connectionAndGameState = await checkConnectionAndGameState(
+      this._gameHandler
+    );
     if (connectionAndGameState.type !== "Success")
       return connectionAndGameState;
 
@@ -837,7 +851,9 @@ export class SageFleetHandler {
     const ixs: InstructionReturn[] = [];
 
     // Check connection and game state
-    const connectionAndGameState = await checkConnectionAndGameState();
+    const connectionAndGameState = await checkConnectionAndGameState(
+      this._gameHandler
+    );
     if (connectionAndGameState.type !== "Success")
       return connectionAndGameState;
 
@@ -945,7 +961,9 @@ export class SageFleetHandler {
   async ixRearmFleet(fleetPubkey: PublicKey, amount: number) {
     const ixs: InstructionReturn[] = [];
 
-    const connectionAndGameState = await checkConnectionAndGameState();
+    const connectionAndGameState = await checkConnectionAndGameState(
+      this._gameHandler
+    );
     if (connectionAndGameState.type !== "Success")
       return connectionAndGameState;
 
@@ -1074,7 +1092,9 @@ export class SageFleetHandler {
     const ixs: InstructionReturn[] = [];
 
     // Check connection and game state
-    const connectionAndGameState = await checkConnectionAndGameState();
+    const connectionAndGameState = await checkConnectionAndGameState(
+      this._gameHandler
+    );
     if (connectionAndGameState.type !== "Success")
       return connectionAndGameState;
 
@@ -1183,7 +1203,9 @@ export class SageFleetHandler {
     const ixs: InstructionReturn[] = [];
 
     // Check connection and game state
-    const connectionAndGameState = await checkConnectionAndGameState();
+    const connectionAndGameState = await checkConnectionAndGameState(
+      this._gameHandler
+    );
     if (connectionAndGameState.type !== "Success")
       return connectionAndGameState;
 
@@ -1317,7 +1339,9 @@ export class SageFleetHandler {
     const ixs: InstructionReturn[] = [];
 
     // Check connection and game state
-    const connectionAndGameState = await checkConnectionAndGameState();
+    const connectionAndGameState = await checkConnectionAndGameState(
+      this._gameHandler
+    );
     if (connectionAndGameState.type !== "Success")
       return connectionAndGameState;
 
@@ -1384,7 +1408,9 @@ export class SageFleetHandler {
     const ixs: InstructionReturn[] = [];
 
     // Check connection and game state
-    const connectionAndGameState = await checkConnectionAndGameState();
+    const connectionAndGameState = await checkConnectionAndGameState(
+      this._gameHandler
+    );
     if (connectionAndGameState.type !== "Success")
       return connectionAndGameState;
 

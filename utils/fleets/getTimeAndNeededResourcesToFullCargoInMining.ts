@@ -1,42 +1,34 @@
 import { BN } from "@project-serum/anchor";
 import { Fleet, ShipStats } from "@staratlas/sage";
 import { MAX_AMOUNT } from "../../common/constants";
-import { sageProvider } from "../sageProvider";
+import { SageFleetHandler } from "../../src/SageFleetHandler";
+import { SageGameHandler } from "../../src/SageGameHandler";
 
 export const getTimeAndNeededResourcesToFullCargoInMining = async (
   fleet: Fleet,
   resource: string,
-  sectorCoordinates: [BN, BN]
+  sectorCoordinates: [BN, BN],
+  gh: SageGameHandler,
+  fh: SageFleetHandler
 ) => {
-  const { sageGameHandler, sageFleetHandler } = await sageProvider();
-
   const fleetStats = fleet.data.stats as ShipStats;
   const cargoStats = fleetStats.cargoStats;
 
-  const mint = sageGameHandler.getResourceMintAddress(resource);
-  const mineItemPubkey = sageGameHandler.getMineItemAddress(mint);
-  const mineItemAccount = await sageFleetHandler.getMineItemAccount(
-    mineItemPubkey
-  );
+  const mint = gh.getResourceMintAddress(resource);
+  const mineItemPubkey = gh.getMineItemAddress(mint);
+  const mineItemAccount = await fh.getMineItemAccount(mineItemPubkey);
   if (mineItemAccount.type !== "Success") return mineItemAccount;
 
-  const starbasePubkey = sageGameHandler.getStarbaseAddress(sectorCoordinates);
-  const starbaseAccount = await sageFleetHandler.getStarbaseAccount(
-    starbasePubkey
-  );
+  const starbasePubkey = gh.getStarbaseAddress(sectorCoordinates);
+  const starbaseAccount = await fh.getStarbaseAccount(starbasePubkey);
   if (starbaseAccount.type !== "Success") return starbaseAccount;
 
-  const planetPubkey = await sageGameHandler.getPlanetAddress(
+  const planetPubkey = gh.getPlanetAddress(
     starbaseAccount.starbase.data.sector as [BN, BN]
   );
 
-  const resourcePubkey = sageGameHandler.getResrouceAddress(
-    mineItemPubkey,
-    planetPubkey
-  );
-  const resourceAccount = await sageFleetHandler.getResourceAccount(
-    resourcePubkey
-  );
+  const resourcePubkey = gh.getResrouceAddress(mineItemPubkey, planetPubkey);
+  const resourceAccount = await fh.getResourceAccount(resourcePubkey);
   if (resourceAccount.type !== "Success") return resourceAccount;
 
   const timeInSeconds = Fleet.calculateAsteroidMiningResourceExtractionDuration(

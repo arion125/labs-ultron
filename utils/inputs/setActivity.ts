@@ -1,8 +1,7 @@
 import inquirer from "inquirer";
+import { activites } from "../../common/constants";
 
 export const setActivity = async (): Promise<string> => {
-  const activites = ["Mining", "Cargo"];
-
   const answer = await inquirer.prompt([
     {
       type: "list",

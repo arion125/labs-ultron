@@ -2,53 +2,69 @@
 
 import { cargo } from "./scripts/cargo";
 import { mining } from "./scripts/mining";
-import StateManager from "./src/StateManager";
-import { checkUserSecret } from "./utils/inputs/checkUserSecret";
+import { SageFleetHandler } from "./src/SageFleetHandler";
+import { getConnection } from "./utils/inputs/getConnection";
+import { getKeypairFromSecret } from "./utils/inputs/getKeypairFromSecret";
+import { inputProfile } from "./utils/inputs/inputProfile";
+import { loadGame } from "./utils/inputs/loadGame";
 import { setActivity } from "./utils/inputs/setActivity";
-import { setConfigProfile } from "./utils/inputs/setConfigProfile";
 import { setFleet } from "./utils/inputs/setFleet";
-import { setKeypair } from "./utils/inputs/setKeypair";
-import { setRpc } from "./utils/inputs/setRpc";
-import { setUsageDisclaimer } from "./utils/inputs/setUsageDisclaimer";
-import { sageProvider } from "./utils/sageProvider";
+import { setupProfileData } from "./utils/inputs/setupProfileData";
 
+// 1. Scelta del profilo
+// 2. Recupero dati
+// 3. Se non ce ne sono, configurazione profilo
 const main = async () => {
   console.log("Welcome to Ultron v1.0!");
 
-  const { profile } = await setConfigProfile();
-  StateManager.getInstance().setProfile(profile);
+  // qui l'utente sceglie il profilo desiderato
+  const { profile } = await inputProfile();
 
-  await setUsageDisclaimer();
-  await setKeypair();
-  await setRpc();
+  // qui si controlla se il profilo esiste già, se no, lo si crea
+  await setupProfileData(profile);
 
-  const { userSecret } = await checkUserSecret();
-  StateManager.getInstance().setUserSecret(userSecret);
+  // qui si impostano il keypair e la connection
+  const keypair = await getKeypairFromSecret(profile);
+  const connection = getConnection(profile);
+  if (!keypair || connection.type !== "Success") return;
 
-  const { sageGameHandler } = await sageProvider();
+  // qui comincia lo script
+  const sageGameHandler = await loadGame(keypair, connection.result);
+  const sageFleetHandler = new SageFleetHandler(sageGameHandler);
+  const profilePubkey = await sageGameHandler.getPlayerProfileAddress(
+    keypair.publicKey
+  );
 
   console.log("You're in! Let's go");
 
   const qttrBalance = await sageGameHandler.getQuattrinoBalance();
   if (qttrBalance.type !== "Success" || qttrBalance.tokenBalance == 0) return;
-  // 0. prima di lanciare lo script, prendere come argomenti la pb e sk del wallet e il nodo rpc
-  // 1. prendere in input tutti i dati necessari per eseguire il tool
-  // - flotta da utilizzare
-  const fleet = await setFleet();
+
+  const fleet = await setFleet(
+    sageGameHandler,
+    sageFleetHandler,
+    profilePubkey
+  );
   if (fleet.type !== "Success") return;
-  // 2. selezionare il tipo di attività che si desidera svolgere
-  // - mining (con cargo)
-  // - cargo (solo)
-  // - sdu
-  // - crafting (soon)
+
   const activity = await setActivity();
-  // 3. eseguire l'attività selezionata dall'utente
+
   switch (activity) {
     case "Mining":
-      await mining(fleet.fleet, fleet.position);
+      await mining(
+        fleet.fleet,
+        fleet.position,
+        sageGameHandler,
+        sageFleetHandler
+      );
       break;
     case "Cargo":
-      await cargo(fleet.fleet, fleet.position);
+      await cargo(
+        fleet.fleet,
+        fleet.position,
+        sageGameHandler,
+        sageFleetHandler
+      );
       break;
     default:
       return;

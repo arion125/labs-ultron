@@ -1,24 +1,23 @@
 import { PublicKey } from "@solana/web3.js";
-import { sageProvider } from "../utils/sageProvider";
+import { SageFleetHandler } from "../src/SageFleetHandler";
+import { SageGameHandler } from "../src/SageGameHandler";
 
 export const unloadAmmo = async (
   fleetPubkey: PublicKey,
-  ammoAmount: number
+  ammoAmount: number,
+  gh: SageGameHandler,
+  fh: SageFleetHandler
 ) => {
-  const { sageGameHandler, sageFleetHandler } = await sageProvider();
-
   console.log(" ");
   console.log("Unloading ammo to fleet...");
 
-  let ix = await sageFleetHandler.ixUnloadAmmoBanks(fleetPubkey, ammoAmount);
+  let ix = await fh.ixUnloadAmmoBanks(fleetPubkey, ammoAmount);
   if (ix.type !== "Success") {
     throw new Error(ix.type);
   }
 
-  await sageGameHandler.sendDynamicTransactions(ix.ixs, true);
+  await gh.sendDynamicTransactions(ix.ixs, true);
 
-  /* let tx = await buildAndSignTransactionAndCheck(ix.ixs, true);
-  await sendTransactionAndCheck(tx, "Fleet failed to unload ammo"); */
   console.log("Fleet ammo unloaded!");
-  await sageGameHandler.getQuattrinoBalance();
+  await gh.getQuattrinoBalance();
 };

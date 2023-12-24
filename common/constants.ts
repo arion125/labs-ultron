@@ -9,6 +9,9 @@ export const quattrinoTokenPubkey = new PublicKey(
   "qtr6BUeMKtt65HdYxXm75fLZ19184w4Yh4ZaPp4Ppks"
 );
 
+export const profiles = ["Profile 1", "Profile 2", "Profile 3"];
+export const activites = ["Mining", "Cargo"];
+
 export const configDir1 = path.join(homedir(), ".ultronConfig1");
 export const configDir2 = path.join(homedir(), ".ultronConfig2");
 export const configDir3 = path.join(homedir(), ".ultronConfig3");
@@ -32,3 +35,5 @@ export const keypairPaths: KeypairPath = {
   "Profile 2": keypairPath2,
   "Profile 3": keypairPath3,
 };
+
+export const verifiedRpc = ["rpc.hellomoon.io"];

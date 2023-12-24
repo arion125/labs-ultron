@@ -1,25 +1,22 @@
 import { BN } from "@project-serum/anchor";
 import { PublicKey } from "@solana/web3.js";
 import { ResourceType } from "../common/resources";
-import { sageProvider } from "../utils/sageProvider";
+import { SageFleetHandler } from "../src/SageFleetHandler";
+import { SageGameHandler } from "../src/SageGameHandler";
 
 export const unloadCargo = async (
   fleetPubkey: PublicKey,
   resourceName: ResourceType,
-  amount: BN
+  amount: BN,
+  gh: SageGameHandler,
+  fh: SageFleetHandler
 ) => {
-  const { sageGameHandler, sageFleetHandler } = await sageProvider();
-
   console.log(" ");
   console.log(`Unloading ${amount} ${resourceName} from fleet cargo...`);
 
-  const mintToken = sageGameHandler.getResourceMintAddress(resourceName);
+  const mintToken = gh.getResourceMintAddress(resourceName);
 
-  let ix = await sageFleetHandler.ixWithdrawCargoFromFleet(
-    fleetPubkey,
-    mintToken,
-    amount
-  );
+  let ix = await fh.ixWithdrawCargoFromFleet(fleetPubkey, mintToken, amount);
   switch (ix.type) {
     case "FleetCargoHoldTokenAccountNotFound": {
       return;
@@ -31,10 +28,8 @@ export const unloadCargo = async (
     }
   }
 
-  await sageGameHandler.sendDynamicTransactions(ix.ixs, true);
+  await gh.sendDynamicTransactions(ix.ixs, true);
 
-  /* let tx = await buildAndSignTransactionAndCheck(ix.ixs, true);
-  await sendTransactionAndCheck(tx, "Fleet failed to unload cargo"); */
   console.log("Fleet cargo unloaded!");
-  await sageGameHandler.getQuattrinoBalance();
+  await gh.getQuattrinoBalance();
 };

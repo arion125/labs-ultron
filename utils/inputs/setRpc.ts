@@ -1,16 +1,20 @@
-import { chmodSync, existsSync, outputFileSync } from "fs-extra";
+import {
+  chmodSync,
+  existsSync,
+  outputFileSync,
+  readFileSync,
+  removeSync,
+} from "fs-extra";
 import inquirer from "inquirer";
-import { rpcPath1, rpcPath2, rpcPath3, rpcPaths } from "../../common/constants";
-import StateManager from "../../src/StateManager";
+import { verifiedRpc } from "../../common/constants";
 
-export const setRpc = () => {
-  const profile = StateManager.getInstance().getProfile();
-  if (
-    (profile === "Profile 1" && existsSync(rpcPath1)) ||
-    (profile === "Profile 2" && existsSync(rpcPath2)) ||
-    (profile === "Profile 3" && existsSync(rpcPath3))
-  ) {
-    return Promise.resolve();
+export const setRpc = (rpcPath: string) => {
+  if (existsSync(rpcPath)) {
+    const rpcUrl = new URL(readFileSync(rpcPath).toString());
+    if (verifiedRpc.includes(rpcUrl.hostname) && rpcUrl.protocol === "https:")
+      return Promise.resolve();
+
+    removeSync(rpcPath);
   }
 
   return inquirer.prompt([
@@ -21,9 +25,8 @@ export const setRpc = () => {
       validate: (input) => {
         try {
           const rpc = new URL(input);
-
-          const rpcPath = rpcPaths[profile] || "";
-
+          if (!verifiedRpc.includes(rpc.hostname) || rpc.protocol !== "https:")
+            return "Wrong rpc url, please retry again";
           outputFileSync(rpcPath, rpc.toString());
           chmodSync(rpcPath, 0o600);
           return true;

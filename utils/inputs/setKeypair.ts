@@ -1,25 +1,30 @@
 import { Keypair, PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
-import { chmodSync, existsSync, outputFileSync } from "fs-extra";
-import inquirer, { QuestionCollection } from "inquirer";
 import {
-  keypairPath1,
-  keypairPath2,
-  keypairPath3,
-  keypairPaths,
-} from "../../common/constants";
-import StateManager from "../../src/StateManager";
+  chmodSync,
+  existsSync,
+  outputFileSync,
+  readFileSync,
+  removeSync,
+} from "fs-extra";
+import inquirer, { QuestionCollection } from "inquirer";
+import { EncryptedData } from "../../common/types";
 import { encrypt } from "../crypto";
 
-export const setKeypair = () => {
-  const profile = StateManager.getInstance().getProfile();
+export const setKeypair = (keypairPath: string) => {
+  if (existsSync(keypairPath)) {
+    const fileContent = readFileSync(keypairPath).toString();
+    const encryptedKeypair = JSON.parse(fileContent) as EncryptedData;
 
-  if (
-    (profile === "Profile 1" && existsSync(keypairPath1)) ||
-    (profile === "Profile 2" && existsSync(keypairPath2)) ||
-    (profile === "Profile 3" && existsSync(keypairPath3))
-  ) {
-    return Promise.resolve();
+    if (
+      encryptedKeypair.iv &&
+      encryptedKeypair.content &&
+      encryptedKeypair.salt &&
+      encryptedKeypair.tag
+    )
+      return Promise.resolve();
+
+    removeSync(keypairPath);
   }
 
   const questions: QuestionCollection = [
@@ -29,10 +34,11 @@ export const setKeypair = () => {
       message: "Enter your base58 wallet private key:",
       validate: (input) => {
         try {
-          const keypair = Keypair.fromSecretKey(bs58.decode(input));
+          const secret = bs58.decode(input);
+          const keypair = Keypair.fromSecretKey(secret);
 
           if (!PublicKey.isOnCurve(keypair.publicKey.toBytes()))
-            throw new Error("WalletKeypairIsNotOnCurve");
+            throw new Error("KeypairIsNotOnCurve");
 
           return true;
         } catch (e) {
@@ -42,7 +48,7 @@ export const setKeypair = () => {
     },
     {
       type: "password",
-      name: "userSecret",
+      name: "secret",
       message:
         "Enter a password (at least 8 characters with one capital, one number and one special character) to encrypt your private key. Be sure to save it in a safe place and do not share it with anyone:",
       validate: (input, answers) => {
@@ -51,38 +57,33 @@ export const setKeypair = () => {
           const hasLowerCase = /[a-z]/.test(input);
           const hasNumber = /\d/.test(input);
           const hasSpecialChar = /\W/.test(input);
-          const keypair = Keypair.fromSecretKey(bs58.decode(answers.secretKey));
 
           if (
             input.length >= 8 &&
             hasUpperCase &&
             hasLowerCase &&
             hasNumber &&
-            hasSpecialChar &&
-            input !== keypair.secretKey.toString() &&
-            input !== keypair.publicKey.toString()
+            hasSpecialChar
           ) {
             return true;
           }
-          return "The password must contain at least 8 characters with at least one capital, one number, one special character and can't be equal to wallet's private or public key.";
+          return "The password must contain at least 8 characters with at least one capital, one number and one special character.";
         }
       },
     },
     {
       type: "password",
-      name: "confirmUserSecret",
+      name: "confirmSecret",
       message: "Confirm your password:",
       validate: (input, answers) => {
-        if (answers && input === answers.userSecret) {
+        if (answers && input === answers.secret) {
+          const secret = Buffer.from(input);
           const keypair = Keypair.fromSecretKey(bs58.decode(answers.secretKey));
+          const encryptedKeypair = encrypt(keypair, secret);
+          if (encryptedKeypair.type !== "Success")
+            return `Encryption Failed, please retry. Error: ${encryptedKeypair.type}`;
 
-          const encryptedKeypair = encrypt(
-            keypair.secretKey,
-            answers.userSecret
-          );
-          const keypairPath = keypairPaths[profile] || "";
-
-          outputFileSync(keypairPath, JSON.stringify(encryptedKeypair));
+          outputFileSync(keypairPath, JSON.stringify(encryptedKeypair.result));
           chmodSync(keypairPath, 0o400);
 
           return true;

@@ -1,20 +1,21 @@
-import { existsSync } from "fs-extra";
+import { existsSync, readFileSync, removeSync } from "fs-extra";
 import inquirer from "inquirer";
-import {
-  keypairPath1,
-  keypairPath2,
-  keypairPath3,
-} from "../../common/constants";
-import StateManager from "../../src/StateManager";
+import { EncryptedData } from "../../common/types";
 
-export const setUsageDisclaimer = () => {
-  const profile = StateManager.getInstance().getProfile();
-  if (
-    (profile === "Profile 1" && existsSync(keypairPath1)) ||
-    (profile === "Profile 2" && existsSync(keypairPath2)) ||
-    (profile === "Profile 3" && existsSync(keypairPath3))
-  ) {
-    return Promise.resolve();
+export const setUsageDisclaimer = (keypairPath: string) => {
+  if (existsSync(keypairPath)) {
+    const fileContent = readFileSync(keypairPath).toString();
+    const encryptedKeypair = JSON.parse(fileContent) as EncryptedData;
+
+    if (
+      encryptedKeypair.iv &&
+      encryptedKeypair.content &&
+      encryptedKeypair.salt &&
+      encryptedKeypair.tag
+    )
+      return Promise.resolve();
+
+    removeSync(keypairPath);
   }
 
   console.log(

@@ -1,27 +1,26 @@
 import { PublicKey } from "@solana/web3.js";
+import { SageFleetHandler } from "../src/SageFleetHandler";
+import { SageGameHandler } from "../src/SageGameHandler";
 import { wait } from "../utils/actions/wait";
-import { sageProvider } from "../utils/sageProvider";
 
 export const startMining = async (
   fleetPubkey: PublicKey,
   resource: string,
-  time: number
+  time: number,
+  gh: SageGameHandler,
+  fh: SageFleetHandler
 ) => {
-  const { sageGameHandler, sageFleetHandler } = await sageProvider();
-
   console.log(" ");
   console.log(`Start mining ${resource}...`);
 
-  let ix = await sageFleetHandler.ixStartMining(fleetPubkey, resource);
+  let ix = await fh.ixStartMining(fleetPubkey, resource);
   if (ix.type !== "Success") {
     throw new Error(ix.type);
   }
 
-  await sageGameHandler.sendDynamicTransactions(ix.ixs, true);
+  await gh.sendDynamicTransactions(ix.ixs, true);
 
-  /* let tx = await buildAndSignTransactionAndCheck(ix.ixs, true);
-  await sendTransactionAndCheck(tx, `Fleet failed to start mining ${resource}`); */
   console.log(`Mining started! Waiting for ${time} seconds...`);
-  await sageGameHandler.getQuattrinoBalance();
+  await gh.getQuattrinoBalance();
   await wait(time);
 };

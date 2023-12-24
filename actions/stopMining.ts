@@ -1,21 +1,23 @@
 import { PublicKey } from "@solana/web3.js";
-import { sageProvider } from "../utils/sageProvider";
+import { SageFleetHandler } from "../src/SageFleetHandler";
+import { SageGameHandler } from "../src/SageGameHandler";
 
-export const stopMining = async (fleetPubkey: PublicKey, resource: string) => {
-  const { sageGameHandler, sageFleetHandler } = await sageProvider();
-
+export const stopMining = async (
+  fleetPubkey: PublicKey,
+  resource: string,
+  gh: SageGameHandler,
+  fh: SageFleetHandler
+) => {
   console.log(" ");
   console.log(`Stop mining ${resource}...`);
 
-  let ix = await sageFleetHandler.ixStopMining(fleetPubkey);
+  let ix = await fh.ixStopMining(fleetPubkey);
   if (ix.type !== "Success") {
     throw new Error(ix.type);
   }
 
-  await sageGameHandler.sendDynamicTransactions(ix.ixs, true);
+  await gh.sendDynamicTransactions(ix.ixs, true);
 
-  /* let tx = await buildAndSignTransactionAndCheck(ix.ixs, false);
-  await sendTransactionAndCheck(tx, "Fleet failed to stop mining"); */
   console.log(`Mining stopped!`);
-  await sageGameHandler.getQuattrinoBalance();
+  await gh.getQuattrinoBalance();
 };
