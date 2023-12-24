@@ -1,6 +1,5 @@
 import { Connection } from "@solana/web3.js";
-import { readFileSync } from "fs-extra";
-import { verifiedRpc } from "../../common/constants";
+import { checkRpcFile } from "./checkRpcFile";
 import { getProfileRpcPath } from "./getProfileRpcPath";
 
 export const getConnection = (profile: string) => {
@@ -8,11 +7,11 @@ export const getConnection = (profile: string) => {
   if (rpcPath.type !== "Success") return rpcPath;
 
   try {
-    const rpcUrl = new URL(readFileSync(rpcPath.result).toString());
-    if (!verifiedRpc.includes(rpcUrl.hostname) || rpcUrl.protocol !== "https:")
-      return { type: "RpcUrlNotValid" as const };
+    const cr = checkRpcFile(rpcPath.result);
+    if (cr.type === "InvalidRpcUrl") return cr;
+    if (cr.type === "RpcFileNotFound") return cr;
 
-    const connection = new Connection(rpcUrl.toString(), "confirmed");
+    const connection = new Connection(cr.result.toString(), "confirmed");
     return { type: "Success" as const, result: connection };
   } catch (e) {
     return { type: "GetConnectionError" as const };
