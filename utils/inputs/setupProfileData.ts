@@ -8,10 +8,12 @@ export const setupProfileData = async (profile: string) => {
   const keypairPath = getProfileKeypairPath(profile);
   const rpcPath = getProfileRpcPath(profile);
 
-  if (!keypairPath.result || !rpcPath.result)
-    return { tpye: "InvalidProfile" as const };
+  if (keypairPath.type !== "Success" || rpcPath.type !== "Success")
+    return { type: "InvalidProfile" as const };
 
   await setUsageDisclaimer(keypairPath.result);
   await setKeypair(keypairPath.result);
   await setRpc(rpcPath.result);
+
+  return { type: "Success" as const };
 };

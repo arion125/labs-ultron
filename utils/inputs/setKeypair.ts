@@ -1,31 +1,14 @@
 import { Keypair, PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
-import {
-  chmodSync,
-  existsSync,
-  outputFileSync,
-  readFileSync,
-  removeSync,
-} from "fs-extra";
+import { chmodSync, outputFileSync, removeSync } from "fs-extra";
 import inquirer, { QuestionCollection } from "inquirer";
-import { EncryptedData } from "../../common/types";
 import { encrypt } from "../crypto";
+import { checkKeypairFile } from "./checkKeypairFile";
 
 export const setKeypair = (keypairPath: string) => {
-  if (existsSync(keypairPath)) {
-    const fileContent = readFileSync(keypairPath).toString();
-    const encryptedKeypair = JSON.parse(fileContent) as EncryptedData;
-
-    if (
-      encryptedKeypair.iv &&
-      encryptedKeypair.content &&
-      encryptedKeypair.salt &&
-      encryptedKeypair.tag
-    )
-      return Promise.resolve();
-
-    removeSync(keypairPath);
-  }
+  const ckf = checkKeypairFile(keypairPath);
+  if (ckf.type === "KeypairFileParsingError") removeSync(keypairPath);
+  if (ckf.type === "Success") return Promise.resolve();
 
   const questions: QuestionCollection = [
     {

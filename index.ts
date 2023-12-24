@@ -11,9 +11,6 @@ import { setActivity } from "./utils/inputs/setActivity";
 import { setFleet } from "./utils/inputs/setFleet";
 import { setupProfileData } from "./utils/inputs/setupProfileData";
 
-// 1. Scelta del profilo
-// 2. Recupero dati
-// 3. Se non ce ne sono, configurazione profilo
 const main = async () => {
   console.log("Welcome to Ultron v1.0!");
 
@@ -21,7 +18,8 @@ const main = async () => {
   const { profile } = await inputProfile();
 
   // qui si controlla se il profilo esiste già, se no, lo si crea
-  await setupProfileData(profile);
+  const setup = await setupProfileData(profile);
+  if (setup.type !== "Success") return;
 
   // qui si impostano il keypair e la connection
   const keypair = await getKeypairFromSecret(profile);
