@@ -1,13 +1,13 @@
 import { Connection } from "@solana/web3.js";
+import { Profile } from "../../common/constants";
 import { checkRpcFile } from "./checkRpcFile";
 import { getProfileRpcPath } from "./getProfileRpcPath";
 
-export const getConnection = (profile: string) => {
+export const getConnection = (profile: Profile) => {
   const rpcPath = getProfileRpcPath(profile);
-  if (rpcPath.type !== "Success") return rpcPath;
 
   try {
-    const cr = checkRpcFile(rpcPath.result);
+    const cr = checkRpcFile(rpcPath);
     if (cr.type === "InvalidRpcUrl") return cr;
     if (cr.type === "RpcFileNotFound") return cr;
 

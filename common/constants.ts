@@ -9,31 +9,30 @@ export const quattrinoTokenPubkey = new PublicKey(
   "qtr6BUeMKtt65HdYxXm75fLZ19184w4Yh4ZaPp4Ppks"
 );
 
-export const profiles = ["Profile 1", "Profile 2", "Profile 3"];
+export const profiles = ["Profile 1", "Profile 2", "Profile 3"] as const;
+
+export type Profile = (typeof profiles)[number];
+
 export const activites = ["Mining", "Cargo"];
 
 export const configDir1 = path.join(homedir(), ".ultronConfig1");
 export const configDir2 = path.join(homedir(), ".ultronConfig2");
 export const configDir3 = path.join(homedir(), ".ultronConfig3");
 
-export const keypairPath1 = path.join(configDir1, "keypair.json");
-export const keypairPath2 = path.join(configDir2, "keypair.json");
-export const keypairPath3 = path.join(configDir3, "keypair.json");
-
-export const rpcPath1 = path.join(configDir1, "rpc.txt");
-export const rpcPath2 = path.join(configDir2, "rpc.txt");
-export const rpcPath3 = path.join(configDir3, "rpc.txt");
+const rpcPath = (configDir: string) => path.join(configDir, "rpc.txt");
 
 export const rpcPaths: RpcPath = {
-  "Profile 1": rpcPath1,
-  "Profile 2": rpcPath2,
-  "Profile 3": rpcPath3,
+  "Profile 1": rpcPath(configDir1),
+  "Profile 2": rpcPath(configDir2),
+  "Profile 3": rpcPath(configDir3),
 };
+
+const keypairPath = (configDir: string) => path.join(configDir, "keypair.json");
 
 export const keypairPaths: KeypairPath = {
-  "Profile 1": keypairPath1,
-  "Profile 2": keypairPath2,
-  "Profile 3": keypairPath3,
+  "Profile 1": keypairPath(configDir1),
+  "Profile 2": keypairPath(configDir2),
+  "Profile 3": keypairPath(configDir3),
 };
 
-export const verifiedRpc = ["rpc.hellomoon.io"];
+export const verifiedRpc = ["rpc.hellomoon.io", "solana-mainnet.g.alchemy.com"];

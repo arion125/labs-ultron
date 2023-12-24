@@ -1,15 +1,15 @@
 import { Keypair, PublicKey } from "@solana/web3.js";
 import { readFileSync } from "fs-extra";
+import { Profile } from "../../common/constants";
 import { EncryptedData } from "../../common/types";
 import { decrypt } from "../crypto";
 import { getProfileKeypairPath } from "./getProfileKeypairPath";
 
-export const decryptKeypair = (secret: Buffer, profile: string) => {
+export const decryptKeypair = (secret: Buffer, profile: Profile) => {
   const keypairPath = getProfileKeypairPath(profile);
-  if (keypairPath.type !== "Success") return keypairPath;
 
   try {
-    const fileContent = readFileSync(keypairPath.result).toString();
+    const fileContent = readFileSync(keypairPath).toString();
     const encryptedKeypair = JSON.parse(fileContent) as EncryptedData;
 
     if (
@@ -17,13 +17,17 @@ export const decryptKeypair = (secret: Buffer, profile: string) => {
       !encryptedKeypair.content ||
       !encryptedKeypair.salt ||
       !encryptedKeypair.tag
-    )
+    ) {
       return {
         type: "EncryptedKeypairParsingError" as const,
       };
+    }
 
     const decryptedKeypair = decrypt(encryptedKeypair, secret);
-    if (decryptedKeypair.type !== "Success") return decryptedKeypair;
+
+    if (decryptedKeypair.type !== "Success") {
+      return decryptedKeypair;
+    }
 
     const keypair = Keypair.fromSecretKey(
       Uint8Array.from(decryptedKeypair.result)

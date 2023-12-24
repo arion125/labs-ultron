@@ -14,11 +14,6 @@ const HEX_IV_LENGTH = IV_LENGTH * 2;
 const HEX_TAG_LENGTH = 16 * 2;
 const MIN_SECRET_LENGTH = 32;
 
-type CryptoResult = {
-  type: string;
-  result?: any;
-};
-
 type CryptoContent = {
   salt: string;
   iv: string;
@@ -49,7 +44,7 @@ function validateCryptoInputs(secret: Buffer, components?: CryptoContent) {
   return { type: "Success" as const };
 }
 
-export const encrypt = (keypair: Keypair, secret: Buffer): CryptoResult => {
+export const encrypt = (keypair: Keypair, secret: Buffer) => {
   try {
     const salt = crypto.randomBytes(SALT_LENGTH);
     const hash = crypto.pbkdf2Sync(secret, salt, ITERATIONS, KEY_SIZE, DIGEST);
@@ -63,7 +58,7 @@ export const encrypt = (keypair: Keypair, secret: Buffer): CryptoResult => {
     const authTag = cipher.getAuthTag();
 
     return {
-      type: "Success",
+      type: "Success" as const,
       result: {
         iv: iv.toString("hex"),
         salt: salt.toString("hex"),
@@ -76,10 +71,7 @@ export const encrypt = (keypair: Keypair, secret: Buffer): CryptoResult => {
   }
 };
 
-export const decrypt = (
-  encryptedKeypair: EncryptedData,
-  secret: Buffer
-): CryptoResult => {
+export const decrypt = (encryptedKeypair: EncryptedData, secret: Buffer) => {
   try {
     const salt = Buffer.from(encryptedKeypair.salt, "hex");
     const iv = Buffer.from(encryptedKeypair.iv, "hex");

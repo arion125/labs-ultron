@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { version } from "./package.json";
 import { cargo } from "./scripts/cargo";
 import { mining } from "./scripts/mining";
 import { SageFleetHandler } from "./src/SageFleetHandler";
@@ -12,19 +13,22 @@ import { setFleet } from "./utils/inputs/setFleet";
 import { setupProfileData } from "./utils/inputs/setupProfileData";
 
 const main = async () => {
-  console.log("Welcome to Ultron v1.0!");
+  console.log(`Welcome to Ultron ${version}!`);
 
   // qui l'utente sceglie il profilo desiderato
   const { profile } = await inputProfile();
 
   // qui si controlla se il profilo esiste già, se no, lo si crea
-  const setup = await setupProfileData(profile);
-  if (setup.type !== "Success") return;
+  await setupProfileData(profile);
 
   // qui si impostano il keypair e la connection
   const keypair = await getKeypairFromSecret(profile);
+
   const connection = getConnection(profile);
-  if (!keypair || connection.type !== "Success") return;
+
+  if (connection.type !== "Success") {
+    return;
+  }
 
   // qui comincia lo script
   const sageGameHandler = await loadGame(keypair, connection.result);

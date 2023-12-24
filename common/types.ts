@@ -1,6 +1,7 @@
 import { BN } from "@project-serum/anchor";
 import { PublicKey } from "@solana/web3.js";
 import { Fleet, Starbase } from "@staratlas/sage";
+import { Profile } from "./constants";
 import { ResourceType } from "./resources";
 import { StarbaseInfoKey } from "./starbases";
 
@@ -57,10 +58,6 @@ export type EncryptedData = {
   tag: string;
 };
 
-export type RpcPath = {
-  [key: string]: string;
-};
+export type RpcPath = Record<Profile, string>;
 
-export type KeypairPath = {
-  [key: string]: string;
-};
+export type KeypairPath = Record<Profile, string>;

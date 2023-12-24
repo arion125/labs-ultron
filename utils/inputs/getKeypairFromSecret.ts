@@ -1,9 +1,10 @@
 import { Keypair } from "@solana/web3.js";
 import inquirer from "inquirer";
+import { Profile } from "../../common/constants";
 import { decryptKeypair } from "./decryptKeypair";
 
 export const getKeypairFromSecret = async (
-  profile: string
+  profile: Profile
 ): Promise<Keypair> => {
   const answer = await inquirer.prompt([
     {
@@ -13,8 +14,11 @@ export const getKeypairFromSecret = async (
       validate: (input) => {
         const secret = Buffer.from(input);
         const keypair = decryptKeypair(secret, profile);
-        if (keypair.type !== "Success")
+
+        if (keypair.type !== "Success") {
           return "Wrong password or incorrect keypair, please retry";
+        }
+
         return true;
       },
     },
@@ -22,5 +26,12 @@ export const getKeypairFromSecret = async (
 
   const secret = Buffer.from(answer.secret);
   const keypair = decryptKeypair(secret, profile);
-  return keypair.result as Keypair;
+
+  if (keypair.type !== "Success") {
+    console.log("Wrong password or incorrect keypair, please retry");
+
+    process.exit(1);
+  }
+
+  return keypair.result;
 };

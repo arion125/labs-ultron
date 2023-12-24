@@ -1,19 +1,15 @@
+import { Profile } from "../../common/constants";
 import { getProfileKeypairPath } from "./getProfileKeypairPath";
 import { getProfileRpcPath } from "./getProfileRpcPath";
 import { setKeypair } from "./setKeypair";
 import { setRpc } from "./setRpc";
 import { setUsageDisclaimer } from "./setUsageDisclaimer";
 
-export const setupProfileData = async (profile: string) => {
+export const setupProfileData = async (profile: Profile) => {
   const keypairPath = getProfileKeypairPath(profile);
   const rpcPath = getProfileRpcPath(profile);
 
-  if (keypairPath.type !== "Success" || rpcPath.type !== "Success")
-    return { type: "InvalidProfile" as const };
-
-  await setUsageDisclaimer(keypairPath.result);
-  await setKeypair(keypairPath.result);
-  await setRpc(rpcPath.result);
-
-  return { type: "Success" as const };
+  await setUsageDisclaimer(keypairPath);
+  await setKeypair(keypairPath);
+  await setRpc(rpcPath);
 };
