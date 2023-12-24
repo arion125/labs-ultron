@@ -1,21 +1,11 @@
-import { existsSync } from "fs-extra";
+import { removeSync } from "fs-extra";
 import inquirer from "inquirer";
-import {
-  keypairPath1,
-  keypairPath2,
-  keypairPath3,
-} from "../../common/constants";
-import StateManager from "../../src/StateManager";
+import { checkKeypairFile } from "./checkKeypairFile";
 
-export const setUsageDisclaimer = () => {
-  const profile = StateManager.getInstance().getProfile();
-  if (
-    (profile === "Profile 1" && existsSync(keypairPath1)) ||
-    (profile === "Profile 2" && existsSync(keypairPath2)) ||
-    (profile === "Profile 3" && existsSync(keypairPath3))
-  ) {
-    return Promise.resolve();
-  }
+export const setUsageDisclaimer = (keypairPath: string) => {
+  const ckf = checkKeypairFile(keypairPath);
+  if (ckf.type === "KeypairFileParsingError") removeSync(keypairPath);
+  if (ckf.type === "Success") return Promise.resolve();
 
   console.log(
     "Use of this tool is entirely at your own risk. A private key is required for the tool to function properly. The creator of this tool assumes no responsibility for any misuse or any consequences that arise from its use."

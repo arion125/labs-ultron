@@ -1,17 +1,12 @@
-import { chmodSync, existsSync, outputFileSync } from "fs-extra";
+import { chmodSync, outputFileSync, removeSync } from "fs-extra";
 import inquirer from "inquirer";
-import { rpcPath1, rpcPath2, rpcPath3, rpcPaths } from "../../common/constants";
-import StateManager from "../../src/StateManager";
+import { checkRpcFile } from "./checkRpcFile";
+import { validateRpcUrl } from "./validateRpcUrl";
 
-export const setRpc = () => {
-  const profile = StateManager.getInstance().getProfile();
-  if (
-    (profile === "Profile 1" && existsSync(rpcPath1)) ||
-    (profile === "Profile 2" && existsSync(rpcPath2)) ||
-    (profile === "Profile 3" && existsSync(rpcPath3))
-  ) {
-    return Promise.resolve();
-  }
+export const setRpc = (rpcPath: string) => {
+  const cr = checkRpcFile(rpcPath);
+  if (cr.type === "InvalidRpcUrl") removeSync(rpcPath);
+  if (cr.type === "Success") return Promise.resolve();
 
   return inquirer.prompt([
     {
@@ -19,17 +14,13 @@ export const setRpc = () => {
       name: "rpcUrl",
       message: "Enter your rpc url:",
       validate: (input) => {
-        try {
-          const rpc = new URL(input);
-
-          const rpcPath = rpcPaths[profile] || "";
-
-          outputFileSync(rpcPath, rpc.toString());
-          chmodSync(rpcPath, 0o600);
-          return true;
-        } catch (e) {
+        const cr = validateRpcUrl(input);
+        if (cr.type === "InvalidRpcUrl")
           return "Wrong rpc url, please retry again";
-        }
+
+        outputFileSync(rpcPath, cr.result.toString());
+        chmodSync(rpcPath, 0o600);
+        return true;
       },
     },
   ]);

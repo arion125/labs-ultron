@@ -1,9 +1,10 @@
 import { BN } from "@project-serum/anchor";
 import { Fleet } from "@staratlas/sage";
 import { SectorCoordinates } from "../../common/types";
+import { SageFleetHandler } from "../../src/SageFleetHandler";
 import { getStarbaseDataByPubkey } from "../starbases/getStarbaseDataByPubkey";
 
-export const getFleetPosition = async (fleet: Fleet) => {
+export const getFleetPosition = async (fleet: Fleet, fh: SageFleetHandler) => {
   let coordinates;
 
   if (fleet.state.MoveSubwarp) {
@@ -16,7 +17,8 @@ export const getFleetPosition = async (fleet: Fleet) => {
 
   if (fleet.state.StarbaseLoadingBay) {
     const starbase = await getStarbaseDataByPubkey(
-      fleet.state.StarbaseLoadingBay.starbase
+      fleet.state.StarbaseLoadingBay.starbase,
+      fh
     );
     if (starbase.type !== "Success")
       return { type: "FleetPositionNotFound" as const };
