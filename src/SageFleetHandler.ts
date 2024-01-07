@@ -1,6 +1,6 @@
 import { BN } from "@project-serum/anchor";
 import { getAssociatedTokenAddressSync } from "@solana/spl-token";
-import { PublicKey } from "@solana/web3.js";
+import { Keypair, PublicKey } from "@solana/web3.js";
 import {
   InstructionReturn,
   createAssociatedTokenAccountIdempotent,
@@ -17,6 +17,8 @@ import {
   Sector,
   ShipStats,
   Starbase,
+  StarbaseCreateCargoPodInput,
+  StarbasePlayer,
   StartMiningAsteroidInput,
   StartSubwarpInput,
   StopMiningAsteroidInput,
@@ -136,15 +138,22 @@ export class SageFleetHandler {
     if (fleetAccount.type !== "Success") return fleetAccount;
     if (!fleetAccount.fleet.state.Idle)
       return { type: "FleetIsNotIdle" as const };
-
     const coordinates = fleetAccount.fleet.state.Idle?.sector as [BN, BN];
 
     // Get player profile data
     const playerProfilePubkey = fleetAccount.fleet.data.ownerProfile;
     const sagePlayerProfilePubkey =
       this._gameHandler.getSagePlayerProfileAddress(playerProfilePubkey);
+    /* const sagePlayerProfileAccount =
+      await this._gameHandler.getPlayerProfileAccount(sagePlayerProfilePubkey); */
     const profileFactionPubkey =
       this._gameHandler.getProfileFactionAddress(playerProfilePubkey);
+
+    const program = this._gameHandler.program;
+    const cargoProgram = this._gameHandler.cargoProgram;
+    const gameId = this._gameHandler.gameId as PublicKey;
+    const gameState = this._gameHandler.gameState as PublicKey;
+    const key = this._gameHandler.funder;
 
     const starbasePubkey = this._gameHandler.getStarbaseAddress(coordinates);
     const starbaseAccount = await this.getStarbaseAccount(starbasePubkey);
@@ -154,15 +163,53 @@ export class SageFleetHandler {
       sagePlayerProfilePubkey,
       starbaseAccount.starbase.data.seqId
     );
+    const starbasePlayerAccount =
+      await this._gameHandler.getStarbasePlayerAccount(starbasePlayerPubkey);
+    if (starbasePlayerAccount.type !== "Success") {
+      const ix_0 = StarbasePlayer.registerStarbasePlayer(
+        program,
+        profileFactionPubkey,
+        sagePlayerProfilePubkey,
+        starbasePubkey,
+        gameId,
+        gameState,
+        starbaseAccount.starbase.data.seqId
+      );
+      ixs.push(ix_0);
 
-    const program = this._gameHandler.program;
-    const key = this._gameHandler.funder;
+      const cargoStatsDefinition = this._gameHandler.cargoStatsDefinition;
+      if (!cargoStatsDefinition)
+        return { type: "CargoStatsDefinitionNotFound" as const };
+
+      const podSeedBuffer = Keypair.generate().publicKey.toBuffer();
+      const podSeeds = Array.from(podSeedBuffer);
+
+      const cargoInput = {
+        keyIndex: 0,
+        podSeeds,
+      } as StarbaseCreateCargoPodInput;
+
+      const ix_1 = StarbasePlayer.createCargoPod(
+        program,
+        cargoProgram,
+        starbasePlayerPubkey,
+        key,
+        playerProfilePubkey,
+        profileFactionPubkey,
+        starbasePubkey,
+        cargoStatsDefinition,
+        gameId,
+        gameState,
+        cargoInput
+      );
+
+      ixs.push(ix_1);
+    }
+
     const fleetKey = fleetAccount.fleet.key;
-    const gameId = this._gameHandler.gameId as PublicKey;
-    const gameState = this._gameHandler.gameState as PublicKey;
     const input = 0 as LoadingBayToIdleInput;
 
-    const ix_1 = Fleet.idleToLoadingBay(
+    const ix_2 = Fleet.idleToLoadingBay(
       program,
       key,
       playerProfilePubkey,
@@ -175,7 +222,7 @@ export class SageFleetHandler {
       input
     );
 
-    ixs.push(ix_1);
+    ixs.push(ix_2);
 
     return { type: "Success" as const, ixs };
   }
@@ -265,6 +312,10 @@ export class SageFleetHandler {
     const profileFactionPubkey =
       this._gameHandler.getProfileFactionAddress(playerProfilePubkey);
 
+    const program = this._gameHandler.program;
+    const gameState = this._gameHandler.gameState as PublicKey;
+    const gameId = this._gameHandler.gameId as PublicKey;
+
     const starbasePubkey = this._gameHandler.getStarbaseAddress(coordinates);
     const starbaseAccount = await this.getStarbaseAccount(starbasePubkey);
     if (starbaseAccount.type !== "Success") return starbaseAccount;
@@ -273,6 +324,20 @@ export class SageFleetHandler {
       sagePlayerProfilePubkey,
       starbaseAccount.starbase.data.seqId
     );
+    const starbasePlayerAccount =
+      await this._gameHandler.getStarbasePlayerAccount(starbasePlayerPubkey);
+    if (starbasePlayerAccount.type !== "Success") {
+      const ix_0 = StarbasePlayer.registerStarbasePlayer(
+        program,
+        profileFactionPubkey,
+        sagePlayerProfilePubkey,
+        starbasePubkey,
+        gameId,
+        gameState,
+        starbaseAccount.starbase.data.seqId
+      );
+      ixs.push(ix_0);
+    }
 
     const planetKey = this._gameHandler.getPlanetAddress(
       starbaseAccount.starbase.data.sector as [BN, BN]
@@ -284,10 +349,7 @@ export class SageFleetHandler {
       planetKey
     );
     const fleetKey = fleetAccount.fleet.key;
-    const program = this._gameHandler.program;
     const key = this._gameHandler.funder;
-    const gameState = this._gameHandler.gameState as PublicKey;
-    const gameId = this._gameHandler.gameId as PublicKey;
     const input = { keyIndex: 0 } as StartMiningAsteroidInput;
 
     const ix_1 = Fleet.startMiningAsteroid(
@@ -663,6 +725,7 @@ export class SageFleetHandler {
       await this._gameHandler.getCargoPodsByAuthority(starbasePlayerPubkey);
     if (starbasePlayerCargoPodsAccount.type !== "Success")
       return starbasePlayerCargoPodsAccount;
+
     const [starbasePlayerCargoPods] = starbasePlayerCargoPodsAccount.cargoPods;
     const starbasePlayerCargoPodsPubkey = starbasePlayerCargoPods.key;
     const tokenAccountToATA = createAssociatedTokenAccountIdempotent(
@@ -1198,8 +1261,13 @@ export class SageFleetHandler {
     return { type: "Success" as const, ixs };
   }
 
-  // FIX - WIP
-  async ixWarpToCoordinate(fleetPubkey: PublicKey, distanceCoords: [BN, BN]) {
+  // OK
+  async ixWarpToCoordinate(
+    fleetPubkey: PublicKey,
+    distanceCoords: [BN, BN],
+    from: SectorCoordinates,
+    to: SectorCoordinates
+  ) {
     const ixs: InstructionReturn[] = [];
 
     // Check connection and game state
@@ -1221,6 +1289,14 @@ export class SageFleetHandler {
       sectorFrom[0].add(distanceCoords[0]),
       sectorFrom[1].add(distanceCoords[1]),
     ];
+
+    if (
+      !from[0].eq(sectorFrom[0]) ||
+      !from[1].eq(sectorFrom[1]) ||
+      !to[0].eq(sectorTo[0]) ||
+      !to[1].eq(sectorTo[1])
+    )
+      return { type: "InvalidWarp" as const };
 
     console.log(`Warp from - X: ${sectorFrom[0]} | Y: ${sectorFrom[1]}`);
     console.log(`Warp to - X: ${sectorTo[0]} | Y: ${sectorTo[1]}`);
@@ -1334,7 +1410,9 @@ export class SageFleetHandler {
   // OK
   async ixSubwarpToCoordinate(
     fleetPubkey: PublicKey,
-    distanceCoords: [BN, BN]
+    distanceCoords: [BN, BN],
+    from: SectorCoordinates,
+    to: SectorCoordinates
   ) {
     const ixs: InstructionReturn[] = [];
 
@@ -1357,6 +1435,14 @@ export class SageFleetHandler {
       sectorFrom[0].add(distanceCoords[0]),
       sectorFrom[1].add(distanceCoords[1]),
     ];
+
+    if (
+      !from[0].eq(sectorFrom[0]) ||
+      !from[1].eq(sectorFrom[1]) ||
+      !to[0].eq(sectorTo[0]) ||
+      !to[1].eq(sectorTo[1])
+    )
+      return { type: "InvalidSubwarp" as const };
 
     console.log(`Subwarp from - X: ${sectorFrom[0]} | Y: ${sectorFrom[1]}`);
     console.log(`Subwarp to - X: ${sectorTo[0]} | Y: ${sectorTo[1]}`);

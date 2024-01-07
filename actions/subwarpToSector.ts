@@ -3,17 +3,26 @@ import { SectorCoordinates } from "../common/types";
 import { SageFleetHandler } from "../src/SageFleetHandler";
 import { SageGameHandler } from "../src/SageGameHandler";
 import { wait } from "../utils/actions/wait";
+import { calcSectorsDistanceByCoords } from "../utils/sectors/calcSectorsDistanceByCoords";
 
 export const subwarpToSector = async (
   fleetPubkey: PublicKey,
-  distanceCoords: SectorCoordinates,
+  from: SectorCoordinates,
+  to: SectorCoordinates,
   gh: SageGameHandler,
   fh: SageFleetHandler
 ) => {
   console.log(" ");
   console.log(`Start subwarp...`);
 
-  let ix = await fh.ixSubwarpToCoordinate(fleetPubkey, distanceCoords);
+  const distanceCoords = calcSectorsDistanceByCoords(from, to);
+
+  let ix = await fh.ixSubwarpToCoordinate(
+    fleetPubkey,
+    distanceCoords,
+    from,
+    to
+  );
   if (ix.type !== "Success") {
     throw new Error(ix.type);
   }

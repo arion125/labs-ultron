@@ -38,16 +38,20 @@ export const getTimeAndNeededResourcesToFullCargoInMining = async (
     cargoStats.cargoCapacity
   );
 
-  const food = Fleet.calculateAsteroidMiningFoodToConsume(
-    fleetStats,
-    MAX_AMOUNT,
-    timeInSeconds
+  const food = Math.ceil(
+    Fleet.calculateAsteroidMiningFoodToConsume(
+      fleetStats,
+      MAX_AMOUNT,
+      timeInSeconds
+    )
   );
 
-  const ammo = Fleet.calculateAsteroidMiningAmmoToConsume(
-    fleetStats,
-    MAX_AMOUNT,
-    timeInSeconds
+  const ammo = Math.ceil(
+    Fleet.calculateAsteroidMiningAmmoToConsume(
+      fleetStats,
+      MAX_AMOUNT,
+      timeInSeconds
+    )
   );
 
   const fuel = fleetStats.movementStats.planetExitFuelAmount;

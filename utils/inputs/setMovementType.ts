@@ -7,7 +7,7 @@ export const setMovementType = async (): Promise<string> => {
       value: "subwarp",
     },
     {
-      name: "Warp - only for one-shot travel (alpha)",
+      name: "Warp",
       value: "warp",
     },
   ];

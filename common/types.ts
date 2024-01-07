@@ -61,3 +61,9 @@ export type EncryptedData = {
 export type RpcPath = Record<Profile, string>;
 
 export type KeypairPath = Record<Profile, string>;
+
+export type RouteStep = {
+  from: SectorCoordinates;
+  to: SectorCoordinates;
+  warp: boolean;
+};

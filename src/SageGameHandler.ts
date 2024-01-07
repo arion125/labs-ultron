@@ -20,12 +20,14 @@ import {
   buildAndSignTransaction,
   buildDynamicTransactions,
   keypairToAsyncSigner,
+  readAllFromRPC,
   readFromRPCOrError,
   sendTransaction,
   stringToByteArray,
 } from "@staratlas/data-source";
 import {
   PLAYER_PROFILE_IDL,
+  PlayerProfile,
   PlayerProfileIDL,
 } from "@staratlas/player-profile";
 import {
@@ -116,6 +118,38 @@ export class SageGameHandler {
     lumanite: new PublicKey("LUMACqD5LaKjs1AeuJYToybasTXoYQ7YkxJEc4jowNj"),
     rochinol: new PublicKey("RCH1Zhg4zcSSQK8rw2s6rDMVsgBEWa4kiv1oLFndrN5"),
     sdu: new PublicKey("SDUsgfSZaDhhZ76U3ZgvtFiXsfnHbf2VrzYxjBZ5YbM"),
+    energy_substrate: new PublicKey(
+      "SUBSVX9LYiPrzHeg2bZrqFSDSKkrQkiCesr6SjtdHaX"
+    ),
+    electromagnet: new PublicKey(
+      "EMAGoQSP89CJV5focVjrpEuE4CeqJ4k1DouQW7gUu7yX"
+    ),
+    framework: new PublicKey("FMWKb7YJA5upZHbu5FjVRRoxdDw2FYFAu284VqUGF9C2"),
+    power_source: new PublicKey("PoWRYJnw3YDSyXgNtN3mQ3TKUMoUSsLAbvE8Ejade3u"),
+    particle_accelerator: new PublicKey(
+      "PTCLSWbwZ3mqZqHAporphY2ofio8acsastaHfoP87Dc"
+    ),
+    radiation_absorber: new PublicKey(
+      "RABSXX6RcqJ1L5qsGY64j91pmbQVbsYRQuw1mmxhxFe"
+    ),
+    super_conductor: new PublicKey(
+      "CoNDDRCNxXAMGscCdejioDzb6XKxSzonbWb36wzSgp5T"
+    ),
+    strange_emitter: new PublicKey(
+      "EMiTWSLgjDVkBbLFaMcGU6QqFWzX9JX6kqs1UtUjsmJA"
+    ),
+    crystal_lattice: new PublicKey(
+      "CRYSNnUd7cZvVfrEVtVNKmXiCPYdZ1S5pM5qG2FDVZHF"
+    ),
+    copper_wire: new PublicKey("cwirGHLB2heKjCeTy4Mbp4M443fU4V7vy2JouvYbZna"),
+    copper: new PublicKey("CPPRam7wKuBkYzN5zCffgNU17RKaeMEns4ZD83BqBVNR"),
+    electronics: new PublicKey("ELECrjC8m9GxCqcm4XCNpFvkS8fHStAvymS6MJbe3XLZ"),
+    graphene: new PublicKey("GRAPHKGoKtXtdPBx17h6fWopdT5tLjfAP8cDJ1SvvDn4"),
+    hydrocarbon: new PublicKey("HYCBuSWCJ5ZEyANexU94y1BaBPtAX2kzBgGD2vES2t6M"),
+    iron: new PublicKey("ironxrUhTEaBiR9Pgp6hy4qWx6V2FirDoXhsFP25GFP"),
+    magnet: new PublicKey("MAGNMDeDJLvGAnriBvzWruZHfXNwWHhxnoNF75AQYM5"),
+    polymer: new PublicKey("PoLYs2hbRt5iDibrkPT9e6xWuhSS45yZji5ChgJBvcB"),
+    steel: new PublicKey("STEELXLJ8nfJy3P4aNuGxyNRbWPohqHSwxY75NsJRGG"),
   };
 
   ready: Promise<string>;
@@ -233,6 +267,54 @@ export class SageGameHandler {
     return accountInfo.pubkey;
   }
 
+  async getPlayerProfileAccount(
+    playerProfilePubkey: PublicKey
+  ): Promise<PlayerProfile> {
+    const playerProfile = readFromRPCOrError(
+      this.provider.connection,
+      this.playerProfileProgram,
+      playerProfilePubkey,
+      PlayerProfile,
+      "confirmed"
+    );
+
+    return playerProfile;
+  }
+
+  async findAllFleetsByPlayerProfile(playerProfile: PublicKey) {
+    const program = await sageProgram(this.provider);
+
+    /* const fleets = await program.account.fleet.all([
+      {
+        memcmp: {
+          offset: 41,
+          bytes: playerProfile.toBase58(),
+        },
+      },
+    ]); */
+
+    const fetchFleets = await readAllFromRPC(
+      this.connection,
+      program,
+      Fleet,
+      "confirmed",
+      [
+        {
+          memcmp: {
+            offset: 41,
+            bytes: playerProfile.toBase58(),
+          },
+        },
+      ]
+    );
+
+    const fleets = fetchFleets.flatMap((fleet) =>
+      fleet.type === "ok" ? [fleet.data] : []
+    );
+
+    return fleets;
+  }
+
   getCargoTypeAddress(mint: PublicKey) {
     if (!this.cargoStatsDefinition || !this.cargoStatsDefinitionSeqId) {
       throw Error("this.cargoStatsDefinition not set (or missing SeqId)");
@@ -335,25 +417,35 @@ export class SageGameHandler {
     return starbasePlayer;
   }
 
-  getStarbasePlayer(starbasePlayerPubkey: PublicKey): Promise<StarbasePlayer> {
-    const starbasePlayer = readFromRPCOrError(
-      this.provider.connection,
-      this.program,
-      starbasePlayerPubkey,
-      StarbasePlayer,
-      "confirmed"
-    );
-
-    return starbasePlayer;
+  async getStarbasePlayerAccount(starbasePlayerPubkey: PublicKey) {
+    try {
+      const starbasePlayer = await readFromRPCOrError(
+        this.provider.connection,
+        this.program,
+        starbasePlayerPubkey,
+        StarbasePlayer,
+        "confirmed"
+      );
+      return { type: "Success" as const, starbasePlayer };
+    } catch (e) {
+      return { type: "StarbasePlayerNotFound" as const };
+    }
   }
 
   async getCargoPodsByAuthority(authority: PublicKey) {
     try {
-      const cargoPods = await getCargoPodsByAuthority(
+      const fetchCargoPods = await getCargoPodsByAuthority(
         this.provider.connection,
         this.cargoProgram,
         authority
       );
+
+      const cargoPods = fetchCargoPods.flatMap((pod) =>
+        pod.type === "ok" ? [pod.data] : []
+      );
+
+      if (cargoPods.length == 0) return { type: "CargoPodsNotFound" as const };
+
       return { type: "Success" as const, cargoPods };
     } catch (e) {
       return { type: "CargoPodsNotFound" as const };

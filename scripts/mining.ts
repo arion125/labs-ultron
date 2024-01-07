@@ -22,13 +22,14 @@ import { actionWrapper } from "../utils/actions/actionWrapper";
 import { sendNotification } from "../utils/actions/sendNotification";
 import { getTimeAndNeededResourcesToFullCargoInMining } from "../utils/fleets/getTimeAndNeededResourcesToFullCargoInMining";
 import { setMiningInputs } from "../utils/inputs/setMiningInputs";
-import { calcSectorsDistanceByCoords } from "../utils/sectors/calcSectorsDistanceByCoords";
+import { generateRoute } from "../utils/sectors/generateRoute";
 
 export const mining = async (
   fleet: Fleet,
   position: SectorCoordinates,
   gh: SageGameHandler,
-  fh: SageFleetHandler
+  fh: SageFleetHandler,
+  cycles: number
 ) => {
   // 1. prendere in input tutti i dati necessari per il mining di una risorsa
   // - dove vuoi minare
@@ -59,15 +60,32 @@ export const mining = async (
   if (miningTimeAndResourcesAmount.type !== "Success")
     return miningTimeAndResourcesAmount;
 
-  const distanceCoords =
-    starbase && calcSectorsDistanceByCoords(position, starbase);
+  let routeStart = starbase
+    ? await generateRoute(
+        fleetPubkey,
+        position,
+        starbase,
+        movementType == "warp",
+        gh,
+        fh
+      )
+    : { type: "StarbaseNotFound" as const };
+  if (routeStart.type !== "Success") return routeStart;
 
-  const reverseDistanceCoords =
-    distanceCoords &&
-    (distanceCoords.map((item) => item.neg()) as SectorCoordinates);
+  let routeBack = starbase
+    ? await generateRoute(
+        fleetPubkey,
+        starbase,
+        position,
+        movementType == "warp",
+        gh,
+        fh
+      )
+    : { type: "StarbaseNotFound" as const };
+  if (routeBack.type !== "Success") return routeBack;
 
   // 3. avviare l'automazione utilizzando i dati forniti dall'utente
-  while (true) {
+  for (let i = 0; i < cycles; i++) {
     try {
       await actionWrapper(loadFuel, fleetPubkey, MAX_AMOUNT, gh, fh);
       await actionWrapper(loadAmmo, fleetPubkey, MAX_AMOUNT, gh, fh);
@@ -80,27 +98,33 @@ export const mining = async (
         fh
       );
       await actionWrapper(undockFromStarbase, fleetPubkey, gh, fh);
-      if (starbase && distanceCoords && movementType == "subwarp") {
-        await actionWrapper(
-          subwarpToSector,
-          fleetPubkey,
-          distanceCoords,
-          gh,
-          fh
-        );
-        await actionWrapper(exitSubwarp, fleetPubkey, gh, fh);
+
+      for (const trip of routeStart.result) {
+        if (trip.warp) {
+          await actionWrapper(
+            warpToSector,
+            fleetPubkey,
+            trip.from,
+            trip.to,
+            gh,
+            fh,
+            trip.to !== starbase
+          );
+          await actionWrapper(exitWarp, fleetPubkey, gh, fh);
+        }
+        if (!trip.warp) {
+          await actionWrapper(
+            subwarpToSector,
+            fleetPubkey,
+            trip.from,
+            trip.to,
+            gh,
+            fh
+          );
+          await actionWrapper(exitSubwarp, fleetPubkey, gh, fh);
+        }
       }
-      if (starbase && distanceCoords && movementType == "warp") {
-        await actionWrapper(
-          warpToSector,
-          fleetPubkey,
-          distanceCoords,
-          gh,
-          fh,
-          false
-        );
-        await actionWrapper(exitWarp, fleetPubkey, gh, fh);
-      }
+
       await actionWrapper(
         startMining,
         fleetPubkey,
@@ -110,27 +134,33 @@ export const mining = async (
         fh
       );
       await actionWrapper(stopMining, fleetPubkey, resourceToMine, gh, fh);
-      if (starbase && reverseDistanceCoords && movementType == "subwarp") {
-        await actionWrapper(
-          subwarpToSector,
-          fleetPubkey,
-          reverseDistanceCoords,
-          gh,
-          fh
-        );
-        await actionWrapper(exitSubwarp, fleetPubkey, gh, fh);
+
+      for (const trip of routeBack.result) {
+        if (trip.warp) {
+          await actionWrapper(
+            warpToSector,
+            fleetPubkey,
+            trip.from,
+            trip.to,
+            gh,
+            fh,
+            true
+          );
+          await actionWrapper(exitWarp, fleetPubkey, gh, fh);
+        }
+        if (!trip.warp) {
+          await actionWrapper(
+            subwarpToSector,
+            fleetPubkey,
+            trip.from,
+            trip.to,
+            gh,
+            fh
+          );
+          await actionWrapper(exitSubwarp, fleetPubkey, gh, fh);
+        }
       }
-      if (starbase && reverseDistanceCoords && movementType == "warp") {
-        await actionWrapper(
-          warpToSector,
-          fleetPubkey,
-          reverseDistanceCoords,
-          gh,
-          fh,
-          true
-        );
-        await actionWrapper(exitWarp, fleetPubkey, gh, fh);
-      }
+
       await actionWrapper(dockToStarbase, fleetPubkey, gh, fh);
       await actionWrapper(
         unloadCargo,
@@ -143,7 +173,9 @@ export const mining = async (
       await sendNotification(NotificationMessage.MINING_SUCCESS, fleetName);
     } catch (e) {
       await sendNotification(NotificationMessage.MINING_ERROR, fleetName);
-      break;
+      return { type: "Error" as const };
     }
   }
+
+  return { type: "Success" as const };
 };
