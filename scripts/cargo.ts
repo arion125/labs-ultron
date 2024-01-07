@@ -42,30 +42,6 @@ export const cargo = async (
   const fleetPubkey = fleet.key;
   const fleetName = byteArrayToString(fleet.data.fleetLabel);
 
-  let routeStart = starbaseTo
-    ? await generateRoute(
-        fleetPubkey,
-        position,
-        starbaseTo,
-        movementType == "warp",
-        gh,
-        fh
-      )
-    : { type: "StarbaseNotFound" as const };
-  if (routeStart.type !== "Success") return routeStart;
-
-  let routeBack = starbaseTo
-    ? await generateRoute(
-        fleetPubkey,
-        starbaseTo,
-        position,
-        movementType == "warp",
-        gh,
-        fh
-      )
-    : { type: "StarbaseNotFound" as const };
-  if (routeBack.type !== "Success") return routeBack;
-
   let effectiveResourcesToDestination: InputResourcesForCargo[];
   let effectiveResourcesToStarbase: InputResourcesForCargo[];
 
@@ -76,6 +52,30 @@ export const cargo = async (
 
     try {
       await actionWrapper(loadFuel, fleetPubkey, MAX_AMOUNT, gh, fh);
+
+      let routeStart = starbaseTo
+        ? await generateRoute(
+            fleetPubkey,
+            position,
+            starbaseTo,
+            movementType == "warp",
+            gh,
+            fh
+          )
+        : { type: "StarbaseNotFound" as const };
+      if (routeStart.type !== "Success") return routeStart;
+
+      let routeBack = starbaseTo
+        ? await generateRoute(
+            fleetPubkey,
+            starbaseTo,
+            position,
+            movementType == "warp",
+            gh,
+            fh
+          )
+        : { type: "StarbaseNotFound" as const };
+      if (routeBack.type !== "Success") return routeBack;
       //await actionWrapper(loadAmmo, fleetPubkey, MAX_AMOUNT, gh, fh);
 
       for (const item of resourcesToDestination) {

@@ -60,34 +60,35 @@ export const mining = async (
   if (miningTimeAndResourcesAmount.type !== "Success")
     return miningTimeAndResourcesAmount;
 
-  let routeStart = starbase
-    ? await generateRoute(
-        fleetPubkey,
-        position,
-        starbase,
-        movementType == "warp",
-        gh,
-        fh
-      )
-    : { type: "Success" as const, result: [] };
-  if (routeStart.type !== "Success") return routeStart;
-
-  let routeBack = starbase
-    ? await generateRoute(
-        fleetPubkey,
-        starbase,
-        position,
-        movementType == "warp",
-        gh,
-        fh
-      )
-    : { type: "Success" as const, result: [] };
-  if (routeBack.type !== "Success") return routeBack;
-
   // 3. avviare l'automazione utilizzando i dati forniti dall'utente
   for (let i = 0; i < cycles; i++) {
     try {
       await actionWrapper(loadFuel, fleetPubkey, MAX_AMOUNT, gh, fh);
+
+      let routeStart = starbase
+        ? await generateRoute(
+            fleetPubkey,
+            position,
+            starbase,
+            movementType == "warp",
+            gh,
+            fh
+          )
+        : { type: "Success" as const, result: [] };
+      if (routeStart.type !== "Success") return routeStart;
+
+      let routeBack = starbase
+        ? await generateRoute(
+            fleetPubkey,
+            starbase,
+            position,
+            movementType == "warp",
+            gh,
+            fh
+          )
+        : { type: "Success" as const, result: [] };
+      if (routeBack.type !== "Success") return routeBack;
+
       await actionWrapper(loadAmmo, fleetPubkey, MAX_AMOUNT, gh, fh);
       await actionWrapper(
         loadCargo,

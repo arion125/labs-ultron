@@ -1,6 +1,7 @@
 import { PublicKey } from "@solana/web3.js";
 import { SageFleetHandler } from "../src/SageFleetHandler";
 import { SageGameHandler } from "../src/SageGameHandler";
+import { wait } from "../utils/actions/wait";
 
 export const loadFuel = async (
   fleetPubkey: PublicKey,
@@ -23,6 +24,7 @@ export const loadFuel = async (
   }
 
   await gh.sendDynamicTransactions(ix.ixs, true);
+  await wait(15);
 
   console.log("Fleet fuel loaded!");
   await gh.getQuattrinoBalance();
