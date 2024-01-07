@@ -2,7 +2,6 @@ import * as cliProgress from "cli-progress";
 
 export const wait = (seconds: number): Promise<void> => {
   return new Promise((resolve) => {
-    // Crea una nuova barra di progresso
     const progressBar = new cliProgress.SingleBar(
       {
         format: "[{bar}]" + " " + "{percentage}%" + " | " + "ETA: {eta}s",
@@ -11,7 +10,6 @@ export const wait = (seconds: number): Promise<void> => {
       cliProgress.Presets.legacy
     );
 
-    // Inizia la progress bar
     progressBar.start(100, 0);
 
     let elapsed = 0;

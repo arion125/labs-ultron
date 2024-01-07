@@ -9,15 +9,17 @@ const processInput = async (
   const resources: InputResourcesForCargo[] = [];
 
   for (const pair of resourcePairs) {
-    const regex = /(\w+)\s+(\d+)/;
+    const regex = /(\w+)\s+(\d+|ALL)/i;
     const match = regex.exec(pair.trim());
 
     if (match) {
       const resource = match[1] as ResourceKey;
       if (!Resource[resource]) return [];
+      const amount =
+        match[2].toUpperCase() === "ALL" ? 999999999 : parseInt(match[2], 10);
       resources.push({
         resource: Resource[resource],
-        amount: parseInt(match[2], 10),
+        amount: amount,
       });
     } else {
       return [];

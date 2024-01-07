@@ -14,9 +14,9 @@ export async function actionWrapper<R, A extends any[]>(
       return await func(...args);
     } catch (e) {
       if (e instanceof NoEnoughTokensToPerformLabsAction) throw e;
-      console.error(`Action failed. Auto retry in 60 seconds. ${e}`);
+      console.error(`Action failed. Auto retry in 15 seconds. ${e}`);
       sendNotification(NotificationMessage.FAIL_WARNING);
-      await wait(60);
+      await wait(15);
     }
   }
 }

@@ -9,6 +9,17 @@ export const quattrinoTokenPubkey = new PublicKey(
   "qtr6BUeMKtt65HdYxXm75fLZ19184w4Yh4ZaPp4Ppks"
 );
 
+export const startOptions = ["Start", "Settings"];
+
+export const resetOptions = [
+  "Reset Profile 1 - Keypair",
+  "Reset Profile 1 - RPC",
+  "Reset Profile 2 - Keypair",
+  "Reset Profile 2 - RPC",
+  "Reset Profile 3 - Keypair",
+  "Reset Profile 3 - RPC",
+];
+
 export const profiles = ["Profile 1", "Profile 2", "Profile 3"] as const;
 
 export type Profile = (typeof profiles)[number];
@@ -35,4 +46,8 @@ export const keypairPaths: KeypairPath = {
   "Profile 3": keypairPath(configDir3),
 };
 
-export const verifiedRpc = ["rpc.hellomoon.io", "solana-mainnet.g.alchemy.com"];
+export const verifiedRpc = [
+  "rpc.hellomoon.io",
+  "solana-mainnet.g.alchemy.com",
+  "mainnet.helius-rpc.com",
+];

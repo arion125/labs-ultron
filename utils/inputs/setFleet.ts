@@ -1,4 +1,5 @@
 import { PublicKey } from "@solana/web3.js";
+import { byteArrayToString } from "@staratlas/data-source";
 import inquirer from "inquirer";
 import {
   StarbaseInfoKey,
@@ -6,7 +7,6 @@ import {
 } from "../../common/starbases";
 import { SageFleetHandler } from "../../src/SageFleetHandler";
 import { SageGameHandler } from "../../src/SageGameHandler";
-import { getFleetAccountByName } from "../fleets/getFleetAccountByName";
 import { getFleetPosition } from "../fleets/getFleetPosition";
 
 export const setFleet = async (
@@ -14,42 +14,34 @@ export const setFleet = async (
   fh: SageFleetHandler,
   profilePubkey: PublicKey
 ) => {
-  const answers = await inquirer.prompt([
-    {
-      type: "input",
-      name: "fleetName",
-      message: "Enter the fleet name:",
-      validate: async (input) => {
-        const fleetAccount = await getFleetAccountByName(
-          input,
-          gh,
-          fh,
-          profilePubkey
-        );
-        if (fleetAccount.type !== "Success")
-          return "There is no fleet with this name. Please enter a valid fleet name.";
+  const fleets = await gh.findAllFleetsByPlayerProfile(profilePubkey);
+  const dockedFleets = fleets.filter((fleet) => fleet.state.StarbaseLoadingBay);
 
-        const fleetPosition = await getFleetPosition(fleetAccount.fleet, fh);
-        if (
-          fleetPosition.type !== "Success" ||
-          !fleetAccount.fleet.state.StarbaseLoadingBay
-        )
-          return "The fleet is not in any starbase loading bay. Please enter a valid fleet name.";
+  if (dockedFleets.length == 0) {
+    console.log(
+      `You don't have any docked fleet. Please dock a fleet and restart Ultron.`
+    );
+    return { type: "NoDockedFleets" as const };
+  }
 
-        return true;
-      },
-    },
-  ]);
+  const answers = await inquirer.prompt({
+    type: "list",
+    name: "selectedFleet",
+    message: "Choose a fleet:",
+    choices: dockedFleets.map((fleet) => {
+      return {
+        name: byteArrayToString(fleet.data.fleetLabel), // new TextDecoder().decode(Buffer.from(fleet.data.fleetLabel))
+        value: fleet.key,
+      };
+    }),
+  });
 
-  const fleetAccount = await getFleetAccountByName(
-    answers.fleetName,
-    gh,
-    fh,
-    profilePubkey
+  const [selectedFleet] = dockedFleets.filter(
+    (fleet) => fleet.key === answers.selectedFleet
   );
-  if (fleetAccount.type !== "Success") return fleetAccount;
+  const fleetName = byteArrayToString(selectedFleet.data.fleetLabel);
 
-  const fleetPosition = await getFleetPosition(fleetAccount.fleet, fh);
+  const fleetPosition = await getFleetPosition(selectedFleet, fh);
   if (fleetPosition.type !== "Success") return fleetPosition;
 
   const currentStarbaseName = findStarbaseNameByCoords(
@@ -57,12 +49,12 @@ export const setFleet = async (
   ) as StarbaseInfoKey;
 
   console.log(
-    `Great. You have selected the fleet "${answers.fleetName}" located in ${currentStarbaseName}`
+    `Great. You have selected the fleet "${fleetName}" located in ${currentStarbaseName}`
   );
 
   return {
     type: "Success" as const,
-    fleet: fleetAccount.fleet,
+    fleet: selectedFleet,
     position: fleetPosition.position,
   };
 };
