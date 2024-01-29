@@ -175,6 +175,16 @@ export const mining = async (
         gh,
         fh
       );
+
+      await actionWrapper(
+        unloadCargo,
+        fleetPubkey,
+        Resource.Food,
+        MAX_AMOUNT,
+        gh,
+        fh
+      );
+      
       await sendNotification(NotificationMessage.MINING_SUCCESS, fleetName);
     } catch (e) {
       await sendNotification(NotificationMessage.MINING_ERROR, fleetName);
