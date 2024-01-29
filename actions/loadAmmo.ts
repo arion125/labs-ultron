@@ -25,5 +25,4 @@ export const loadAmmo = async (
   await gh.sendDynamicTransactions(ix.ixs, true);
 
   console.log("Fleet ammo loaded!");
-  await gh.getQuattrinoBalance();
 };
