@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 
+import { Connection, Keypair } from "@solana/web3.js";
 import { version } from "./package.json";
 import { cargo } from "./scripts/cargo";
 import { mining } from "./scripts/mining";
 import { SageFleetHandler } from "./src/SageFleetHandler";
+import { SageGame } from "./src/SageGame";
 import { getConnection } from "./utils/inputs/getConnection";
 import { getKeypairFromSecret } from "./utils/inputs/getKeypairFromSecret";
 import { inputProfile } from "./utils/inputs/inputProfile";
@@ -36,6 +38,7 @@ const main = async () => {
 
   const connection = getConnection(profile);
 
+  // FIX: se la connessione non è andata a buon fine, Ultron riprova
   if (connection.type !== "Success") {
     return;
   }
@@ -95,7 +98,24 @@ const main = async () => {
   }
 };
 
-main().catch((err) => {
+/* main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+}); */
+
+const test = async () => {
+  const keypair = Keypair.generate()
+
+  const connection = new Connection("https://mainnet.helius-rpc.com/?api-key=459e67eb-87a7-43dd-bc5c-c6a8dcf42af7")
+
+  const sage = new SageGame(keypair, connection);
+
+  const data = await sage.getAllStarbasesAccount()
+
+  console.log(data);
+}
+
+test().catch((err) => {
   console.error(err);
   process.exit(1);
 });

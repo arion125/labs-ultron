@@ -38,6 +38,8 @@ export const mining = async (
     position
   );
 
+  const foodPubkey = gh.getResourceMintAddress(Resource.Food);
+
   // 2. calcolare tutti i dati necessari correlati agli input
   const fleetPubkey = fleet.key;
   const fleetName = byteArrayToString(fleet.data.fleetLabel);
