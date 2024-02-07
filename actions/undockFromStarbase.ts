@@ -15,7 +15,7 @@ export const undockFromStarbase = async (
     throw new Error(ix.type);
   }
 
-  await gh.sendDynamicTransactions(ix.ixs, true);
+  await gh.sendDynamicTransactions(ix.ixs, false);
 
   console.log("Fleet undocked!");
   await gh.getQuattrinoBalance();
