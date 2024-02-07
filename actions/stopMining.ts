@@ -16,7 +16,7 @@ export const stopMining = async (
     throw new Error(ix.type);
   }
 
-  await gh.sendDynamicTransactions(ix.ixs, true);
+  await gh.sendDynamicTransactions(ix.ixs, resource != "hydro");
 
   console.log(`Mining stopped!`);
   await gh.getQuattrinoBalance();
