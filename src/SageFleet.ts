@@ -11,6 +11,7 @@ type CargoPod = {
     fullLoad: boolean;
 }
 
+
 /* export class SageFleet {
     private sageGame: SageGame;
 
@@ -24,6 +25,7 @@ type CargoPod = {
     fuelTank: CargoPod;
     ammoBank: CargoPod;
 
+    // input: Fleet -> SageFleet is a Fleet class wrapper
     constructor(sageGame: SageGame, fleetPublicKey: PublicKey) {
         this.sageGame = sageGame;
         this.publicKey = fleetPublicKey;

@@ -18,6 +18,7 @@ import { setStart } from "./utils/inputs/setStart";
 import { setupProfileData } from "./utils/inputs/setupProfileData";
 import { SectorCoordinates } from "./common/types";
 import { PlanetType } from "@staratlas/sage";
+import { SagePlayer } from "./src/SagePlayer";
 
 const main = async () => {
   console.log(`Welcome to Ultron ${version}!`);
@@ -110,27 +111,27 @@ const test = async () => {
 
   const connection = new Connection("https://rpc.hellomoon.io/d0cd8cb8-48cd-45f3-923e-08eda03f7bed")
 
-  // 1. Setup environment (SageGame.ts) [no keypair needed]
+  // 1. Setup environment (SageGame.ts) [keypair required]
   const sage = await SageGame.init(keypair, connection);
 
-  // 2. Setup player (SagePlayer.ts) [keypair required]
+  // 2. Setup player (SagePlayer.ts)
+  const player = await SagePlayer.init(sage);
+
+  // 3. Play with fleets (SageFleet.ts)
   // ...
 
-  // 3. Play with fleets (SageFleet.ts) [keypair required]
+  // 4. Play with scanning (SageScan.ts)
   // ...
 
-  // 4. Play with scanning (SageScan.ts) [keypair required]
+  // 5. Play with crafting (SageCrafting.ts)
   // ...
 
-  // 5. Play with crafting (SageCrafting.ts) [keypair required]
+  // 6. Play with galactic marketplace (GalacticMarketplace.ts)
   // ...
 
-  // 6. Play with galactic marketplace (GalacticMarketplace.ts) [keypair required]
-  // ...
+  // const data = await sage.findResourcesByPlanet(sage.planets.find(item => item.data.planetType === PlanetType.AsteroidBelt)!.key)
 
-  const data = await sage.findResourcesByPlanet(sage.planets.find(item => item.data.planetType === PlanetType.AsteroidBelt)!.key)
-
-  console.log(data);
+  // console.log(data);
 }
 
 test().catch((err) => {
