@@ -5,6 +5,7 @@ import {
   getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
 import {
+  ComputeBudgetProgram,
   Connection,
   Keypair,
   PublicKey,
@@ -54,6 +55,7 @@ import {
 } from "@staratlas/sage";
 import { quattrinoTokenPubkey } from "../common/constants";
 import { SectorCoordinates } from "../common/types";
+import { getPriorityFeeEstimate } from "../utils/fees/getPriorityFeeEstimate";
 
 const findGame = async (provider: AnchorProvider) => {
   const program = await sageProgram(provider);
@@ -74,6 +76,13 @@ const findAllPlanets = async (provider: AnchorProvider) => {
   ]);
 
   return planets;
+};
+
+const findAllSurveyDataUnitTracker = async (provider: AnchorProvider) => {
+  const program = await sageProgram(provider);
+  const surveyDataUnitTracker = await program.account.surveyDataUnitTracker.all();
+
+  return surveyDataUnitTracker;
 };
 
 export const sageProgram = async (provider: AnchorProvider) => {
@@ -118,29 +127,15 @@ export class SageGameHandler {
     lumanite: new PublicKey("LUMACqD5LaKjs1AeuJYToybasTXoYQ7YkxJEc4jowNj"),
     rochinol: new PublicKey("RCH1Zhg4zcSSQK8rw2s6rDMVsgBEWa4kiv1oLFndrN5"),
     sdu: new PublicKey("SDUsgfSZaDhhZ76U3ZgvtFiXsfnHbf2VrzYxjBZ5YbM"),
-    energy_substrate: new PublicKey(
-      "SUBSVX9LYiPrzHeg2bZrqFSDSKkrQkiCesr6SjtdHaX"
-    ),
-    electromagnet: new PublicKey(
-      "EMAGoQSP89CJV5focVjrpEuE4CeqJ4k1DouQW7gUu7yX"
-    ),
+    energy_substrate: new PublicKey("SUBSVX9LYiPrzHeg2bZrqFSDSKkrQkiCesr6SjtdHaX"),
+    electromagnet: new PublicKey("EMAGoQSP89CJV5focVjrpEuE4CeqJ4k1DouQW7gUu7yX"),
     framework: new PublicKey("FMWKb7YJA5upZHbu5FjVRRoxdDw2FYFAu284VqUGF9C2"),
     power_source: new PublicKey("PoWRYJnw3YDSyXgNtN3mQ3TKUMoUSsLAbvE8Ejade3u"),
-    particle_accelerator: new PublicKey(
-      "PTCLSWbwZ3mqZqHAporphY2ofio8acsastaHfoP87Dc"
-    ),
-    radiation_absorber: new PublicKey(
-      "RABSXX6RcqJ1L5qsGY64j91pmbQVbsYRQuw1mmxhxFe"
-    ),
-    super_conductor: new PublicKey(
-      "CoNDDRCNxXAMGscCdejioDzb6XKxSzonbWb36wzSgp5T"
-    ),
-    strange_emitter: new PublicKey(
-      "EMiTWSLgjDVkBbLFaMcGU6QqFWzX9JX6kqs1UtUjsmJA"
-    ),
-    crystal_lattice: new PublicKey(
-      "CRYSNnUd7cZvVfrEVtVNKmXiCPYdZ1S5pM5qG2FDVZHF"
-    ),
+    particle_accelerator: new PublicKey("PTCLSWbwZ3mqZqHAporphY2ofio8acsastaHfoP87Dc"),
+    radiation_absorber: new PublicKey("RABSXX6RcqJ1L5qsGY64j91pmbQVbsYRQuw1mmxhxFe"),
+    super_conductor: new PublicKey("CoNDDRCNxXAMGscCdejioDzb6XKxSzonbWb36wzSgp5T"),
+    strange_emitter: new PublicKey("EMiTWSLgjDVkBbLFaMcGU6QqFWzX9JX6kqs1UtUjsmJA"),
+    crystal_lattice: new PublicKey("CRYSNnUd7cZvVfrEVtVNKmXiCPYdZ1S5pM5qG2FDVZHF"),
     copper_wire: new PublicKey("cwirGHLB2heKjCeTy4Mbp4M443fU4V7vy2JouvYbZna"),
     copper: new PublicKey("CPPRam7wKuBkYzN5zCffgNU17RKaeMEns4ZD83BqBVNR"),
     electronics: new PublicKey("ELECrjC8m9GxCqcm4XCNpFvkS8fHStAvymS6MJbe3XLZ"),
@@ -161,6 +156,7 @@ export class SageGameHandler {
 
   connection: Connection;
   provider: AnchorProvider;
+  priority: string;
 
   funder: AsyncSigner;
   gameId?: PublicKey;
@@ -172,14 +168,17 @@ export class SageGameHandler {
 
   game?: Game;
   planetLookup?: SagePlanetAddresses;
+  surveyDataUnitTracker?: PublicKey;
+  surveyDataUnitTrackerAccountSigner?: PublicKey;
 
-  constructor(funder: Keypair, connection: Connection) {
+  constructor(funder: Keypair, connection: Connection, priority: string) {
     this.connection = connection;
     this.provider = new AnchorProvider(
       connection,
       new Wallet(funder),
       AnchorProvider.defaultOptions()
     );
+    this.priority = priority;
 
     this.program = new Program(
       SAGE_IDL,
@@ -207,9 +206,11 @@ export class SageGameHandler {
     this.ready = Promise.all([
       findGame(this.provider),
       findAllPlanets(this.provider),
+      findAllSurveyDataUnitTracker(this.provider),
     ]).then((result) => {
       const [game] = result[0];
       const planets = result[1];
+      const [sduTracker] = result[2];
 
       this.gameId = game.publicKey;
       this.gameState = game.account.gameState;
@@ -230,6 +231,9 @@ export class SageGameHandler {
         return lookup;
       }, {} as SagePlanetAddresses);
 
+      this.surveyDataUnitTracker = sduTracker.publicKey;
+      this.surveyDataUnitTrackerAccountSigner = sduTracker.account.signer;
+
       return Promise.resolve("ready");
     });
   }
@@ -249,8 +253,8 @@ export class SageGameHandler {
     return planet;
   }
 
-  async getPlayerProfileAddress(playerPubkey: PublicKey) {
-    const [accountInfo] = await this.connection.getProgramAccounts(
+  async getPlayerProfileAccounts(playerPubkey: PublicKey) {
+    const accountInfo = await this.connection.getProgramAccounts(
       new PublicKey(SageGameHandler.PLAYER_PROFILE_PROGRAM_ID),
       {
         filters: [
@@ -264,7 +268,7 @@ export class SageGameHandler {
       }
     );
 
-    return accountInfo.pubkey;
+    return accountInfo;
   }
 
   async getPlayerProfileAccount(
@@ -588,7 +592,7 @@ export class SageGameHandler {
     }
   }
 
-  async buildAndSignTransaction(
+  /* async buildAndSignTransaction(
     instructions: InstructionReturn | InstructionReturn[],
     fee: boolean
   ) {
@@ -618,9 +622,9 @@ export class SageGameHandler {
     } catch (e) {
       return { type: "BuildAndSignTransactionError" as const };
     }
-  }
+  } */
 
-  async sendTransaction(tx: TransactionReturn) {
+  /* async sendTransaction(tx: TransactionReturn) {
     try {
       const result = await sendTransaction(tx, this.connection, {
         commitment: "finalized",
@@ -644,11 +648,13 @@ export class SageGameHandler {
         result: e,
       };
     }
-  }
+  } */
 
   async sendDynamicTransactions(
     instructions: InstructionReturn[],
-    fee: boolean
+    fee: boolean,
+    beforeIxs: InstructionReturn[] = [],
+    afterIxs: InstructionReturn[] = []
   ) {
     if (fee) {
       try {
@@ -663,14 +669,52 @@ export class SageGameHandler {
       } catch (e) {
         return { type: "NoEnoughTokensToPerformLabsAction" as const };
       }
-
-      instructions.unshift(this.ixBurnQuattrinoToken());
     }
 
     const connection = this.connection;
-    const txs = await buildDynamicTransactions(instructions, this.funder, {
-      connection,
+
+    const txsEstimate = await buildDynamicTransactions(
+      instructions, 
+      this.funder, 
+      { connection },
+      beforeIxs,
+      fee ? [...afterIxs, this.ixBurnQuattrinoToken()] : afterIxs
+    );
+
+    if (txsEstimate.isErr()) {
+      return {
+        type: "BuildDynamicTransactionFailed",
+        result: txsEstimate.error,
+      };
+    }
+
+    let feeEstimate = { priorityFeeEstimate: 0 };
+    feeEstimate = await getPriorityFeeEstimate(this.priority, txsEstimate.value[0]);
+
+    if (feeEstimate.priorityFeeEstimate > 1000000) {
+      return {
+        type: "PriorityFeeTooHigh" as const,
+        result: "The Priority Fee Estimate is too high",
+      };
+    }
+
+    const computePrice = ComputeBudgetProgram.setComputeUnitPrice({
+      microLamports: feeEstimate.priorityFeeEstimate,
     });
+    console.log("Priority Fee estimate: ", (feeEstimate.priorityFeeEstimate / 1000000), "Lamports per CU");
+
+    const computePriceIx: InstructionReturn = async (funder) => ({
+      instruction: computePrice,
+      signers: [funder],
+    });
+
+    const txs = await buildDynamicTransactions(
+      instructions, 
+      this.funder, 
+      { connection },
+      [computePriceIx, ...beforeIxs],
+      fee ? [...afterIxs, this.ixBurnQuattrinoToken()] : afterIxs
+    );
 
     if (txs.isErr()) {
       return {
@@ -686,6 +730,7 @@ export class SageGameHandler {
         commitment: "confirmed",
         sendOptions: {
           skipPreflight: false,
+          preflightCommitment: "confirmed"
         },
       });
 

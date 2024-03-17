@@ -26,7 +26,7 @@ export const warpToSector = async (
   await gh.sendDynamicTransactions(ix.ixs, true);
 
   console.log(`Waiting for ${ix.timeToWarp} seconds...`);
-  await gh.getQuattrinoBalance();
+  gh.getQuattrinoBalance();
   await wait(ix.timeToWarp);
   console.log(`Warp completed!`);
 

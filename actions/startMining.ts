@@ -21,6 +21,6 @@ export const startMining = async (
   await gh.sendDynamicTransactions(ix.ixs, resource != "hydrogen");
 
   console.log(`Mining started! Waiting for ${time} seconds...`);
-  await gh.getQuattrinoBalance();
+  gh.getQuattrinoBalance();
   await wait(time);
 };

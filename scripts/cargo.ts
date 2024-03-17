@@ -11,17 +11,18 @@ import { unloadCargo } from "../actions/unloadCargo";
 import { warpToSector } from "../actions/warpToSector";
 import { MAX_AMOUNT } from "../common/constants";
 import { NotificationMessage } from "../common/notifications";
-import { InputResourcesForCargo, SectorCoordinates } from "../common/types";
+import { InputResourcesForCargo } from "../common/types";
 import { SageFleetHandler } from "../src/SageFleetHandler";
 import { SageGameHandler } from "../src/SageGameHandler";
 import { actionWrapper } from "../utils/actions/actionWrapper";
 import { sendNotification } from "../utils/actions/sendNotification";
 import { setCargoInputs } from "../utils/inputs/setCargoInputs";
 import { generateRoute } from "../utils/sectors/generateRoute";
+import { setFleet } from "../utils/inputs/setFleet";
+import { PublicKey } from "@solana/web3.js";
 
 export const cargo = async (
-  fleet: Fleet,
-  position: SectorCoordinates,
+  profilePubkey: PublicKey,
   gh: SageGameHandler,
   fh: SageFleetHandler,
   cycles: number
@@ -31,6 +32,15 @@ export const cargo = async (
   // - quali risorse vuoi trasportare (andata)
   // - quali risorse vuoi trasportare (ritorno)
   // - vuoi spostarti in warp o subwarp (calcolare la rotta)
+  const fleetResponse = await setFleet(
+    gh,
+    fh,
+    profilePubkey
+  );
+  if (fleetResponse.type !== "Success") return fleetResponse;
+  const fleet = fleetResponse.fleet;
+  const position = fleetResponse.position;
+
   const {
     starbaseTo,
     resourcesToDestination,

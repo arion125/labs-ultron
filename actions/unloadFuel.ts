@@ -19,5 +19,5 @@ export const unloadFuel = async (
   await gh.sendDynamicTransactions(ix.ixs, true);
 
   console.log("Fleet fuel unloaded!");
-  await gh.getQuattrinoBalance();
+  gh.getQuattrinoBalance();
 };

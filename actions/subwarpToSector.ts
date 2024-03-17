@@ -30,7 +30,7 @@ export const subwarpToSector = async (
   await gh.sendDynamicTransactions(ix.ixs, true);
 
   console.log(`Waiting for ${ix.timeToSubwarp} seconds...`);
-  await gh.getQuattrinoBalance();
+  gh.getQuattrinoBalance();
   await wait(ix.timeToSubwarp);
   console.log(`Subwarp completed!`);
 };

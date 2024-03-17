@@ -3,6 +3,7 @@
 import { version } from "./package.json";
 import { cargo } from "./scripts/cargo";
 import { mining } from "./scripts/mining";
+import { scan } from "./scripts/scan";
 import { SageFleetHandler } from "./src/SageFleetHandler";
 import { getConnection } from "./utils/inputs/getConnection";
 import { getKeypairFromSecret } from "./utils/inputs/getKeypairFromSecret";
@@ -11,9 +12,10 @@ import { loadGame } from "./utils/inputs/loadGame";
 import { resetProfile } from "./utils/inputs/resetProfile";
 import { setActivity } from "./utils/inputs/setActivity";
 import { setCycles } from "./utils/inputs/setCycles";
-import { setFleet } from "./utils/inputs/setFleet";
+import { setCharacter } from "./utils/inputs/setCharacter";
 import { setStart } from "./utils/inputs/setStart";
 import { setupProfileData } from "./utils/inputs/setupProfileData";
+import { setPriority } from "./utils/inputs/setPriority";
 
 const main = async () => {
   console.log(`Welcome to Ultron ${version}!`);
@@ -24,6 +26,8 @@ const main = async () => {
     await resetProfile();
     return;
   }
+
+  const priorityFees = await setPriority();
 
   // qui l'utente sceglie il profilo desiderato
   const { profile } = await inputProfile();
@@ -41,23 +45,29 @@ const main = async () => {
   }
 
   // qui comincia lo script
-  const sageGameHandler = await loadGame(keypair, connection.result);
+  const sageGameHandler = await loadGame(keypair, connection.result, priorityFees.priority);
   const sageFleetHandler = new SageFleetHandler(sageGameHandler);
-  const profilePubkey = await sageGameHandler.getPlayerProfileAddress(
+  /* const profilePubkey = await sageGameHandler.getPlayerProfileAddress(
+    keypair.publicKey
+  ); */
+
+  const profileAccounts = await sageGameHandler.getPlayerProfileAccounts(
     keypair.publicKey
   );
+
+  const profilePubkey = profileAccounts.length == 1 ? profileAccounts[0].pubkey : await setCharacter(profileAccounts);
 
   console.log("You're in! Let's go");
 
   const qttrBalance = await sageGameHandler.getQuattrinoBalance();
   if (qttrBalance.type !== "Success" || qttrBalance.tokenBalance == 0) return;
 
-  const fleet = await setFleet(
+  /* const fleet = await setFleet(
     sageGameHandler,
     sageFleetHandler,
     profilePubkey
   );
-  if (fleet.type !== "Success") return;
+  if (fleet.type !== "Success") return; */
 
   const activity = await setActivity();
 
@@ -67,27 +77,37 @@ const main = async () => {
     case "Mining":
       while (true) {
         const m = await mining(
-          fleet.fleet,
-          fleet.position,
+          profilePubkey,
           sageGameHandler,
           sageFleetHandler,
           cycles
         );
         if (m.type !== "Success") console.log(m.type);
-        if (m.type === "Success") break;
+        break;
       }
       break;
     case "Cargo":
       while (true) {
         const c = await cargo(
-          fleet.fleet,
-          fleet.position,
+          profilePubkey,
           sageGameHandler,
           sageFleetHandler,
           cycles
         );
         if (c.type !== "Success") console.log(c.type);
-        if (c.type === "Success") break;
+        break;
+      }
+      break;
+    case "Scan":
+      while (true) {
+        const s = await scan(
+          profilePubkey,
+          sageGameHandler,
+          sageFleetHandler,
+          cycles
+        );
+        if (s.type !== "Success") console.log(s.type);
+        break;
       }
       break;
     default:

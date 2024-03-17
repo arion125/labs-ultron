@@ -19,5 +19,5 @@ export const unloadAmmo = async (
   await gh.sendDynamicTransactions(ix.ixs, true);
 
   console.log("Fleet ammo unloaded!");
-  await gh.getQuattrinoBalance();
+  gh.getQuattrinoBalance();
 };

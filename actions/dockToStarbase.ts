@@ -18,5 +18,5 @@ export const dockToStarbase = async (
   await gh.sendDynamicTransactions(ix.ixs, false);
 
   console.log("Fleet docked!");
-  await gh.getQuattrinoBalance();
+  gh.getQuattrinoBalance();
 };

@@ -21,6 +21,10 @@ export const unloadCargo = async (
     case "FleetCargoHoldTokenAccountNotFound": {
       return;
     }
+    case "NoResourcesToWithdraw": {
+      console.log(`No ${resourceName} to withdraw`);
+      return;
+    }
     default: {
       if (ix.type !== "Success") {
         throw new Error(ix.type);
@@ -31,5 +35,5 @@ export const unloadCargo = async (
   await gh.sendDynamicTransactions(ix.ixs, true);
 
   console.log("Fleet cargo unloaded!");
-  await gh.getQuattrinoBalance();
+  gh.getQuattrinoBalance();
 };

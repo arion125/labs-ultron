@@ -15,7 +15,6 @@ import { warpToSector } from "../actions/warpToSector";
 import { MAX_AMOUNT } from "../common/constants";
 import { NotificationMessage } from "../common/notifications";
 import { Resource } from "../common/resources";
-import { SectorCoordinates } from "../common/types";
 import { SageFleetHandler } from "../src/SageFleetHandler";
 import { SageGameHandler } from "../src/SageGameHandler";
 import { actionWrapper } from "../utils/actions/actionWrapper";
@@ -23,10 +22,11 @@ import { sendNotification } from "../utils/actions/sendNotification";
 import { getTimeAndNeededResourcesToFullCargoInMining } from "../utils/fleets/getTimeAndNeededResourcesToFullCargoInMining";
 import { setMiningInputs } from "../utils/inputs/setMiningInputs";
 import { generateRoute } from "../utils/sectors/generateRoute";
+import { PublicKey } from "@solana/web3.js";
+import { setFleet } from "../utils/inputs/setFleet";
 
 export const mining = async (
-  fleet: Fleet,
-  position: SectorCoordinates,
+  profilePubkey: PublicKey,
   gh: SageGameHandler,
   fh: SageFleetHandler,
   cycles: number
@@ -34,6 +34,15 @@ export const mining = async (
   // 1. prendere in input tutti i dati necessari per il mining di una risorsa
   // - dove vuoi minare
   // - quale risorsa vuoi minare
+  const fleetResponse = await setFleet(
+    gh,
+    fh,
+    profilePubkey
+  );
+  if (fleetResponse.type !== "Success") return fleetResponse;
+  const fleet = fleetResponse.fleet;
+  const position = fleetResponse.position;
+
   const { starbase, movementType, resourceToMine } = await setMiningInputs(
     position
   );
@@ -167,6 +176,16 @@ export const mining = async (
       }
 
       await actionWrapper(dockToStarbase, fleetPubkey, gh, fh);
+
+      await actionWrapper(
+        unloadCargo,
+        fleetPubkey,
+        Resource.Food,
+        MAX_AMOUNT,
+        gh,
+        fh
+      );
+
       await actionWrapper(
         unloadCargo,
         fleetPubkey,
@@ -175,6 +194,7 @@ export const mining = async (
         gh,
         fh
       );
+      
       await sendNotification(NotificationMessage.MINING_SUCCESS, fleetName);
     } catch (e) {
       await sendNotification(NotificationMessage.MINING_ERROR, fleetName);

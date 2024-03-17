@@ -67,3 +67,8 @@ export type RouteStep = {
   to: SectorCoordinates;
   warp: boolean;
 };
+
+export type SectorInfo = {
+  coordinates: SectorCoordinates;
+  sduProbability: number;
+}

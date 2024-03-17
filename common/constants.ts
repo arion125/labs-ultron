@@ -24,7 +24,9 @@ export const profiles = ["Profile 1", "Profile 2", "Profile 3"] as const;
 
 export type Profile = (typeof profiles)[number];
 
-export const activites = ["Mining", "Cargo"];
+export const activites = ["Mining", "Cargo", "Scan"];
+
+export const priority = ["Default", "Low", "Medium", "High"];
 
 export const configDir1 = path.join(homedir(), ".ultronConfig1");
 export const configDir2 = path.join(homedir(), ".ultronConfig2");
@@ -52,3 +54,5 @@ export const verifiedRpc = [
   "mainnet.helius-rpc.com",
   "rpc.ironforge.network"
 ];
+
+export const heliusFeeUrl = "https://n8n.lorenzodelia.com/webhook/f9636f10-e082-49ab-af39-d27fa9051c08"
