@@ -1,11 +1,11 @@
-import { AnchorProvider, Program, Wallet, BN } from "@project-serum/anchor"
+import { Provider, AnchorProvider, Program, Wallet, BN } from "@staratlas/anchor";
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import { readFromRPCOrError, readAllFromRPC, stringToByteArray } from "@staratlas/data-source";
-import { PLAYER_PROFILE_IDL, PlayerProfileIDL } from "@staratlas/player-profile";
-import { Fleet, Game, GameState, MineItem, Planet, Resource, SAGE_IDL, SageIDL, SagePlayerProfile, Sector, Star, Starbase } from "@staratlas/sage";
-import { ProfileFactionIDL, PROFILE_FACTION_IDL } from "@staratlas/profile-faction";
-import { CargoIDL, CARGO_IDL } from "@staratlas/cargo";
-import { CraftingIDL, CRAFTING_IDL } from "@staratlas/crafting";
+import { PLAYER_PROFILE_IDL, PlayerProfileIDLProgram } from "@staratlas/player-profile";
+import { Fleet, Game, GameState, MineItem, Planet, Resource, SAGE_IDL, SageIDLProgram, SagePlayerProfile, SageProgram, Sector, Star, Starbase } from "@staratlas/sage";
+import { ProfileFactionIDLProgram, PROFILE_FACTION_IDL } from "@staratlas/profile-faction";
+import { CargoIDLProgram, CARGO_IDL } from "@staratlas/cargo";
+import { CraftingIDLProgram, CRAFTING_IDL } from "@staratlas/crafting";
 import { SectorCoordinates } from "../common/types";
 
 interface ResourcesMint {
@@ -15,7 +15,7 @@ interface ResourcesMint {
 export class SageGame {
     
     // Sage Programs
-    private provider: AnchorProvider;
+    private provider: Provider;
     
     static readonly SAGE_PROGRAM_ID = new PublicKey("SAGEqqFewepDHH6hMDcmWy7yjHPpyKLDnRXKb3Ki8e6");
     static readonly PLAYER_PROFILE_PROGRAM_ID = new PublicKey("pprofELXjL5Kck7Jn5hCpwAL82DpTkSYBENzahVtbc9");
@@ -23,11 +23,11 @@ export class SageGame {
     static readonly CARGO_PROGRAM_ID = new PublicKey("Cargo8a1e6NkGyrjy4BQEW4ASGKs9KSyDyUrXMfpJoiH");
     static readonly CRAFTING_PROGRAM_ID = new PublicKey("Craftf1EGzEoPFJ1rpaTSQG1F6hhRRBAf4gRo9hdSZjR");
     
-    private sageProgram: Program<SageIDL>;
-    private playerProfileProgram: Program<PlayerProfileIDL>;
-    private profileFactionProgram: Program<ProfileFactionIDL>;
-    private cargoProgram: Program<CargoIDL>;
-    private craftingProgram: Program<CraftingIDL>;
+    private sageProgram: SageIDLProgram;
+    private playerProfileProgram: PlayerProfileIDLProgram;
+    private profileFactionProgram: ProfileFactionIDLProgram;
+    private cargoProgram: CargoIDLProgram;
+    private craftingProgram: CraftingIDLProgram;
 
     // Sage Resources Mint
     static readonly RESOURCES_MINT: ResourcesMint = {
@@ -180,7 +180,7 @@ export class SageGame {
             this.provider.connection,
             this.sageProgram,
             Game,
-            "confirmed"
+            "confirmed",
           );
 
           if (fetchGame.type !== "ok") throw new Error()

@@ -1,4 +1,4 @@
-import { AnchorProvider, BN, Program, Wallet } from "@project-serum/anchor";
+import { Provider, AnchorProvider, Program, Wallet, BN } from "@staratlas/anchor";
 import {
   Account as TokenAccount,
   createBurnInstruction,

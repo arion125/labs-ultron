@@ -109,13 +109,13 @@ const main = async () => {
 const test = async () => {
   const keypair = Keypair.generate()
 
-  const connection = new Connection("https://rpc.hellomoon.io/d0cd8cb8-48cd-45f3-923e-08eda03f7bed")
+  const connection = new Connection("https://rpc.ironforge.network/mainnet?apiKey=01HR88Y5Z7MNBJ7YPQ2RAP2VNP")
 
   // 1. Setup environment (SageGame.ts) [keypair required]
   const sage = await SageGame.init(keypair, connection);
 
   // 2. Setup player (SagePlayer.ts)
-  const player = await SagePlayer.init(sage);
+  // const player = await SagePlayer.init(sage);
 
   // 3. Play with fleets (SageFleet.ts)
   // ...
