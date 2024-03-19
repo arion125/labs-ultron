@@ -22,7 +22,7 @@ export const setScanInputs = async (position: SectorCoordinates) => {
 
   const movementType = !sameCoordinates(position, coords)
     ? await setMovementType()
-    : undefined;
+    : "";
 
   /* const subMovementType = searchBehavior !== "static"
     ? await setSubMovementType()

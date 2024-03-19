@@ -7,11 +7,12 @@ export const scanSdu = async (
   fleetPubkey: PublicKey,
   gh: SageGameHandler,
   fh: SageFleetHandler,
-  cooldown: number
+  cooldown: number,
+  onlyDataRunner: boolean = false
 ) => {
   console.log(`Scanning sector...`);
 
-  let ix = await fh.ixScanForSurveyDataUnits(fleetPubkey);
+  let ix = await fh.ixScanForSurveyDataUnits(fleetPubkey, onlyDataRunner);
   
   if (ix.type !== "Success" && ix.type !== "CreateSduTokenAccount") {
     throw new Error(ix.type);

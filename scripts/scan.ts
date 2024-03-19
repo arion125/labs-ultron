@@ -26,6 +26,7 @@ import { canGoAndComeBack } from "../utils/sectors/canGoAndComeBack";
 import { generateRoute } from "../utils/sectors/generateRoute";
 import { sameCoordinates } from "../utils/sectors/sameCoordinates";
 import { getFleetPosition } from "../utils/fleets/getFleetPosition";
+import { getCargoUsage } from "../utils/fleets/getCargoUsage";
 
 export const scan = async (
   profilePubkey: PublicKey,
@@ -68,11 +69,12 @@ export const scan = async (
   // console.log("Fleet ships:", fleetShipsMint.map((ship) => ship.toBase58()));
 
   const filterDataRunner = fleetShipsMint.filter((ship) => 
-    ship !== new PublicKey("9czEqEZ4EkRt7N3HWDcw9qqwys3xRRjGdbn8Jhk8Khwj") && 
-    ship !== new PublicKey("RaYfM1RLfxQJWF8RZravTshKj1aHaWBNXF94VWToY9n")
+    !ship.equals(new PublicKey("9czEqEZ4EkRt7N3HWDcw9qqwys3xRRjGdbn8Jhk8Khwj")) && 
+    !ship.equals(new PublicKey("RaYfM1RLfxQJWF8RZravTshKj1aHaWBNXF94VWToY9n"))
   );
 
-  console.log("Is a only data runner fleet?:", filterDataRunner.length > 0 ? "No" : "Yes");
+  const onlyDataRunner = filterDataRunner.length === 0;
+  console.log("Is a only data runner fleet?:", onlyDataRunner ? "Yes (auto-computed)" : "No (auto-computed)");
 
   const {
     searchBehavior,
@@ -84,7 +86,8 @@ export const scan = async (
   // 2. calcolare tutti i dati necessari correlati agli input
   const fleetPubkey = fleet.key;
   const fleetName = byteArrayToString(fleet.data.fleetLabel);
-  const scanConfig = await getScanConfig(fleet,/* sectorTo, searchBehavior */);
+  
+  const scanConfig = await getScanConfig(fleet/* sectorTo, searchBehavior */);
 
   // 3. avviare l'automazione utilizzando i dati forniti dall'utente
   for (let i = 0; i < cycles; i++) {
@@ -115,7 +118,7 @@ export const scan = async (
         : { type: "Success" as const, result: [] };
       if (routeBack.type !== "Success") return routeBack;
 
-      if (filterDataRunner.length > 0) {
+      if (!onlyDataRunner) {
         await actionWrapper(
           loadCargo,
           fleetPubkey,
@@ -128,7 +131,7 @@ export const scan = async (
 
       await actionWrapper(undockFromStarbase, fleetPubkey, gh, fh);
 
-      if (sectorTo) {
+      if (sectorTo && movementType !== "") {
         for (const trip of routeStart.result) {
           if (trip.warp) {
             await actionWrapper(
@@ -156,47 +159,74 @@ export const scan = async (
         }
       }
 
-      for (let i = 0; i < scanConfig.maxScanAvailable; i++) {
-        console.log(" ");
-        console.log(`${i + 1}/${scanConfig.maxScanAvailable}`)
-        await actionWrapper(
-          scanSdu,
-          fleetPubkey,
-          gh,
-          fh,
-          scanConfig.scanCoolDown
-        );
-      }
+      if (onlyDataRunner) {
+        for (let i = 0; i < 999_999; i++) {
+          const cargoState = await getCargoUsage(fleet, gh);
+          
+          if (cargoState.type !== "Success") return cargoState;
+          
+          if (cargoState.currentFleetCargoAmount >= cargoState.cargoCapacity) 
+            break;
 
-      for (const trip of routeBack.result) {
-        if (trip.warp) {
+          console.log(" ");
+          console.log("Total cargo capacity:", cargoState.cargoCapacity);
+          console.log("Current cargo usage:", cargoState.currentFleetCargoAmount);
           await actionWrapper(
-            warpToSector,
+            scanSdu,
             fleetPubkey,
-            trip.from,
-            trip.to,
             gh,
             fh,
-            true
+            scanConfig.scanCoolDown,
+            onlyDataRunner
           );
-          await actionWrapper(exitWarp, fleetPubkey, gh, fh);
         }
-        if (!trip.warp) {
+      }
+
+      if (!onlyDataRunner) {
+        for (let i = 0; i < scanConfig.maxScanAvailable; i++) {
+          console.log(" ");
+          console.log(`${i + 1}/${scanConfig.maxScanAvailable}`)
           await actionWrapper(
-            subwarpToSector,
+            scanSdu,
             fleetPubkey,
-            trip.from,
-            trip.to,
             gh,
-            fh
+            fh,
+            scanConfig.scanCoolDown
           );
-          await actionWrapper(exitSubwarp, fleetPubkey, gh, fh);
+        }
+      }
+
+      if (sectorTo && movementType !== "") {
+        for (const trip of routeBack.result) {
+          if (trip.warp) {
+            await actionWrapper(
+              warpToSector,
+              fleetPubkey,
+              trip.from,
+              trip.to,
+              gh,
+              fh,
+              true
+            );
+            await actionWrapper(exitWarp, fleetPubkey, gh, fh);
+          }
+          if (!trip.warp) {
+            await actionWrapper(
+              subwarpToSector,
+              fleetPubkey,
+              trip.from,
+              trip.to,
+              gh,
+              fh
+            );
+            await actionWrapper(exitSubwarp, fleetPubkey, gh, fh);
+          }
         }
       }
 
       await actionWrapper(dockToStarbase, fleetPubkey, gh, fh);
 
-      if (filterDataRunner.length > 0) {
+      if (!onlyDataRunner) {
         await actionWrapper(
           unloadCargo,
           fleetPubkey,

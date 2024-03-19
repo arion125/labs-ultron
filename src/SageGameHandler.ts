@@ -1,4 +1,4 @@
-import { AnchorProvider, BN, Program, Wallet } from "@project-serum/anchor";
+import { Provider, AnchorProvider, Program, Wallet, BN } from "@staratlas/anchor";
 import {
   Account as TokenAccount,
   createBurnInstruction,
@@ -17,14 +17,13 @@ import { CARGO_IDL, CargoIDLProgram, CargoType } from "@staratlas/cargo";
 import {
   AsyncSigner,
   InstructionReturn,
-  TransactionReturn,
-  buildAndSignTransaction,
   buildDynamicTransactions,
   keypairToAsyncSigner,
   readAllFromRPC,
   readFromRPCOrError,
   sendTransaction,
   stringToByteArray,
+  getParsedTokenAccountsByOwner
 } from "@staratlas/data-source";
 import {
   PLAYER_PROFILE_IDL,
@@ -49,9 +48,7 @@ import {
   Sector,
   Starbase,
   StarbasePlayer,
-  betterGetTokenAccountsByOwner,
   getCargoPodsByAuthority,
-  getOrCreateAssociatedTokenAccount,
 } from "@staratlas/sage";
 import { quattrinoTokenPubkey } from "../common/constants";
 import { SectorCoordinates } from "../common/types";
@@ -456,7 +453,7 @@ export class SageGameHandler {
     }
   }
 
-  async getOrCreateAssociatedTokenAccount(mint: PublicKey, owner: PublicKey) {
+  /* async getOrCreateAssociatedTokenAccount(mint: PublicKey, owner: PublicKey) {
     const { address, instructions } = await getOrCreateAssociatedTokenAccount(
       this.provider.connection,
       mint,
@@ -465,7 +462,7 @@ export class SageGameHandler {
     );
 
     return { address, instructions };
-  }
+  } */
 
   getSagePlayerProfileAddress(playerProfile: PublicKey) {
     if (!this.gameId) {
@@ -539,7 +536,7 @@ export class SageGameHandler {
 
   async getParsedTokenAccountsByOwner(owner: PublicKey) {
     try {
-      const tokenAccounts = (await betterGetTokenAccountsByOwner(
+      const tokenAccounts = (await getParsedTokenAccountsByOwner(
         this.connection,
         owner
       )) as TokenAccount[];
@@ -699,9 +696,9 @@ export class SageGameHandler {
     }
 
     const computePrice = ComputeBudgetProgram.setComputeUnitPrice({
-      microLamports: feeEstimate.priorityFeeEstimate,
+      microLamports: Math.round(feeEstimate.priorityFeeEstimate),
     });
-    console.log("Priority Fee estimate: ", (feeEstimate.priorityFeeEstimate / 1000000), "Lamports per CU");
+    console.log("Priority Fee estimate: ", (Math.round(feeEstimate.priorityFeeEstimate) / 1000000), "Lamports per CU");
 
     const computePriceIx: InstructionReturn = async (funder) => ({
       instruction: computePrice,

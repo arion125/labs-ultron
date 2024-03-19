@@ -1,5 +1,5 @@
-import { BN } from "@project-serum/anchor";
-import { getAssociatedTokenAddressSync } from "@solana/spl-token";
+import { BN } from "@staratlas/anchor";
+import { getAssociatedTokenAddressSync, getAccount } from "@solana/spl-token";
 import { Keypair, PublicKey } from "@solana/web3.js";
 import {
   InstructionReturn,
@@ -1589,7 +1589,7 @@ export class SageFleetHandler {
     return { type: "Success" as const, ixs };
   }
 
-  async ixScanForSurveyDataUnits(fleetPubkey: PublicKey) {
+  async ixScanForSurveyDataUnits(fleetPubkey: PublicKey, onlyDataRunner: boolean) {
     const ixs: InstructionReturn[] = [];
 
     // Check connection and game state
@@ -1635,26 +1635,29 @@ export class SageFleetHandler {
       true
     );
 
-    const ataSduTokenTo = await getOrCreateAssociatedTokenAccount(
-      this._gameHandler.provider.connection,
+    const ataSduTokenTo = createAssociatedTokenAccountIdempotent(
       sduMint,
       fleetCargoHold,
       true
     )
+    try {
+      await getAccount(this._gameHandler.connection, ataSduTokenTo.address, "confirmed")
+    } catch (e) {
+      const ix_0 = ataSduTokenTo.instructions;
+      if (ix_0) {
+        ixs.push(ix_0);
+        return { type: "CreateSduTokenAccount" as const, ixs };
+      }
+    }
 
     const sduTokenTo = ataSduTokenTo.address;
-    const ix_0 = ataSduTokenTo.instructions;
-    if (ix_0) {
-      ixs.push(ix_0);
-      return { type: "CreateSduTokenAccount" as const, ixs };
-    }
 
     const repairKitTokenFrom = getAssociatedTokenAddressSync(
       repairKitMint,
       fleetCargoHold,
       true
     );
-    if (!repairKitTokenFrom)
+    if (!repairKitTokenFrom && !onlyDataRunner)
       return { type: "NoEnoughRepairKits" as const };
 
     const fleetCargoHoldsPubkey = fleetAccount.fleet.data.cargoHold;
@@ -1668,7 +1671,7 @@ export class SageFleetHandler {
       (tokenAccount) =>
         tokenAccount.mint.toBase58() === repairKitMint.toBase58()
     );
-    if (!tokenAccount || tokenAccount.amount < miscStats.scanRepairKitAmount)
+    if ((!tokenAccount || tokenAccount.amount < miscStats.scanRepairKitAmount) && !onlyDataRunner)
       return { type: "NoEnoughRepairKits" as const };
 
     const ix_1 = SurveyDataUnitTracker.scanForSurveyDataUnits(
