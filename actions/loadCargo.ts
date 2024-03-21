@@ -26,8 +26,11 @@ export const loadCargo = async (
       }
   }
 
-  await gh.sendDynamicTransactions(ix.ixs, true);
+  const tx = await gh.sendDynamicTransactions(ix.ixs, true);
+  if (tx.type !== "Success") {
+    throw new Error(tx.type)
+  }
 
   console.log("Fleet cargo loaded!");
-  gh.getQuattrinoBalance();
+  // gh.getQuattrinoBalance();
 };

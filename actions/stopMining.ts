@@ -16,8 +16,11 @@ export const stopMining = async (
     throw new Error(ix.type);
   }
 
-  await gh.sendDynamicTransactions(ix.ixs, resource != "hydrogen");
+  const tx = await gh.sendDynamicTransactions(ix.ixs, resource != "hydrogen");
+  if (tx.type !== "Success") {
+    throw new Error(tx.type)
+  }
 
   console.log(`Mining stopped!`);
-  gh.getQuattrinoBalance();
+  // gh.getQuattrinoBalance();
 };

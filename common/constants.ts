@@ -26,7 +26,7 @@ export type Profile = (typeof profiles)[number];
 
 export const activites = ["Mining", "Cargo", "Scan"];
 
-export const priority = ["Default", "Low", "Medium", "High"];
+export const priority = ["None", "Basic", "Low", "Default", "Medium", "High"];
 
 export const configDir1 = path.join(homedir(), ".ultronConfig1");
 export const configDir2 = path.join(homedir(), ".ultronConfig2");

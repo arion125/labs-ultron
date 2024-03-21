@@ -82,7 +82,10 @@ const main = async () => {
           sageFleetHandler,
           cycles
         );
-        if (m.type !== "Success") console.log(m.type);
+        if (m.type !== "Success") {
+          console.log(m.type);
+          return;
+        }
         break;
       }
       break;
@@ -94,7 +97,10 @@ const main = async () => {
           sageFleetHandler,
           cycles
         );
-        if (c.type !== "Success") console.log(c.type);
+        if (c.type !== "Success") {
+          console.log(c.type);
+          return;
+        }
         break;
       }
       break;
@@ -106,7 +112,10 @@ const main = async () => {
           sageFleetHandler,
           cycles
         );
-        if (s.type !== "Success") console.log(s.type);
+        if (s.type !== "Success") { 
+          console.log(s.type)
+          return;
+        };
         break;
       }
       break;

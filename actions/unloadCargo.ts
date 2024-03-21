@@ -32,8 +32,11 @@ export const unloadCargo = async (
     }
   }
 
-  await gh.sendDynamicTransactions(ix.ixs, true);
+  const tx = await gh.sendDynamicTransactions(ix.ixs, true);
+  if (tx.type !== "Success") {
+    throw new Error(tx.type)
+  }
 
   console.log("Fleet cargo unloaded!");
-  gh.getQuattrinoBalance();
+  // gh.getQuattrinoBalance();
 };

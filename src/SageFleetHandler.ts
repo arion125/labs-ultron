@@ -1657,22 +1657,22 @@ export class SageFleetHandler {
       fleetCargoHold,
       true
     );
-    if (!repairKitTokenFrom && !onlyDataRunner)
-      return { type: "NoEnoughRepairKits" as const };
 
-    const fleetCargoHoldsPubkey = fleetAccount.fleet.data.cargoHold;
-    const fleetCargoHoldsTokenAccounts =
-      await this._gameHandler.getParsedTokenAccountsByOwner(
-        fleetCargoHoldsPubkey
+    if (!onlyDataRunner) {
+      const fleetCargoHoldsPubkey = fleetAccount.fleet.data.cargoHold;
+      const fleetCargoHoldsTokenAccounts =
+        await this._gameHandler.getParsedTokenAccountsByOwner(
+          fleetCargoHoldsPubkey
+        );
+      if (fleetCargoHoldsTokenAccounts.type !== "Success")
+        return fleetCargoHoldsTokenAccounts;
+      const tokenAccount = fleetCargoHoldsTokenAccounts.tokenAccounts.find(
+        (tokenAccount) =>
+          tokenAccount.mint.toBase58() === repairKitMint.toBase58()
       );
-    if (fleetCargoHoldsTokenAccounts.type !== "Success")
-      return fleetCargoHoldsTokenAccounts;
-    const tokenAccount = fleetCargoHoldsTokenAccounts.tokenAccounts.find(
-      (tokenAccount) =>
-        tokenAccount.mint.toBase58() === repairKitMint.toBase58()
-    );
-    if ((!tokenAccount || tokenAccount.amount < miscStats.scanRepairKitAmount) && !onlyDataRunner)
-      return { type: "NoEnoughRepairKits" as const };
+      if ((!tokenAccount || tokenAccount.amount < miscStats.scanRepairKitAmount))
+        return { type: "NoEnoughRepairKits" as const };
+    }
 
     const ix_1 = SurveyDataUnitTracker.scanForSurveyDataUnits(
       program,

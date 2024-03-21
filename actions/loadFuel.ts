@@ -26,18 +26,16 @@ export const loadFuel = async (
 
   if (ix.ixs.length > 1) {
     const tx = await gh.sendDynamicTransactions([ix.ixs[1]], true, [ix.ixs[0]]);
-
     if (tx.type !== "Success") {
       throw new Error(tx.type)
     }
   } else {
     const tx = await gh.sendDynamicTransactions(ix.ixs, true);
-
     if (tx.type !== "Success") {
       throw new Error(tx.type)
     }
   }
 
   console.log("Fleet fuel loaded!");
-  gh.getQuattrinoBalance();
+  // gh.getQuattrinoBalance();
 };

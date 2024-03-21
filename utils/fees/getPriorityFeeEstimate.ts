@@ -11,6 +11,7 @@ type PriorityFeeData = {
 }
 
 export const getPriorityFeeEstimate = async (priorityLevel: string = "Medium", transaction: TransactionReturn) => {
+  try {
     const response = await fetch(heliusFeeUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -21,6 +22,7 @@ export const getPriorityFeeEstimate = async (priorityLevel: string = "Medium", t
         params: [
           {
             transaction: bs58.encode(transaction.transaction.serialize()),
+            //accountKeys: ["SAGEqqFewepDHH6hMDcmWy7yjHPpyKLDnRXKb3Ki8e6"],
             options: { priorityLevel: priorityLevel },
           },
         ],
@@ -29,4 +31,7 @@ export const getPriorityFeeEstimate = async (priorityLevel: string = "Medium", t
     const data = await response.json() as PriorityFeeData;
 
     return data.result;
+  } catch (e) {
+    return { priorityFeeEstimate: 0 }
+  }
 }

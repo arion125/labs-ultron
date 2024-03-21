@@ -576,7 +576,9 @@ export class SageGameHandler {
       const tokenBalance =
         await this.provider.connection.getTokenAccountBalance(fromATA);
 
-      console.log(`You have ${tokenBalance.value.amount} QTTR`);
+      if (!tokenBalance.value.uiAmount)
+        throw new Error("UnableToLoadBalance");
+
       return {
         type: "Success" as const,
         tokenBalance: tokenBalance.value.uiAmount,
@@ -654,45 +656,38 @@ export class SageGameHandler {
     afterIxs: InstructionReturn[] = []
   ) {
     if (fee) {
-      try {
-        const fromATA = getAssociatedTokenAddressSync(
-          quattrinoTokenPubkey,
-          this.funder.publicKey()
-        );
-        const tokenBalance =
-          await this.provider.connection.getTokenAccountBalance(fromATA);
-        if (tokenBalance.value.uiAmount === 0)
-          return { type: "NoEnoughTokensToPerformLabsAction" as const };
-      } catch (e) {
+      const qttrBalance = await this.getQuattrinoBalance()
+      
+      if (qttrBalance.type !== "Success")
+        return qttrBalance;
+
+      if (qttrBalance.tokenBalance === 0)
         return { type: "NoEnoughTokensToPerformLabsAction" as const };
-      }
+
+      console.log(`You have ${qttrBalance.tokenBalance} QTTR`);
     }
 
     const connection = this.connection;
 
-    const txsEstimate = await buildDynamicTransactions(
-      instructions, 
-      this.funder, 
-      { connection },
-      beforeIxs,
-      fee ? [...afterIxs, this.ixBurnQuattrinoToken()] : afterIxs
-    );
+    let feeEstimate = { priorityFeeEstimate: this.priority !== "Basic" ? 0 : 1 };
+    if (this.priority !== "None" && this.priority !== "Basic") {
+      const txsEstimate = await buildDynamicTransactions(
+        instructions, 
+        this.funder, 
+        { connection },
+        beforeIxs,
+        fee ? [...afterIxs, this.ixBurnQuattrinoToken()] : afterIxs
+      );
+  
+      if (txsEstimate.isErr()) {
+        return { type: "BuildDynamicTransactionFailed" as const, result: txsEstimate.error };
+      }
 
-    if (txsEstimate.isErr()) {
-      return {
-        type: "BuildDynamicTransactionFailed",
-        result: txsEstimate.error,
-      };
+      feeEstimate = await getPriorityFeeEstimate(this.priority, txsEstimate.value[0]);
     }
 
-    let feeEstimate = { priorityFeeEstimate: 0 };
-    feeEstimate = await getPriorityFeeEstimate(this.priority, txsEstimate.value[0]);
-
     if (feeEstimate.priorityFeeEstimate > 1000000) {
-      return {
-        type: "PriorityFeeTooHigh" as const,
-        result: "The Priority Fee Estimate is too high",
-      };
+      return { type: "PriorityFeeTooHigh" as const, result: "The Priority Fee Estimate is too high" };
     }
 
     const computePrice = ComputeBudgetProgram.setComputeUnitPrice({
@@ -714,33 +709,34 @@ export class SageGameHandler {
     );
 
     if (txs.isErr()) {
-      return {
-        type: "BuildDynamicTransactionFailed",
-        result: txs.error,
-      };
+      return { type: "BuildDynamicTransactionFailed" as const, result: txs.error };
     }
 
     let txSignature: TransactionSignature[] = [];
 
-    for (const tx of txs.value) {
-      const result = await sendTransaction(tx, connection, {
-        commitment: "confirmed",
-        sendOptions: {
-          skipPreflight: false,
-          preflightCommitment: "confirmed"
-        },
-      });
+    try {
+      for (const tx of txs.value) {
+        const result = await sendTransaction(tx, connection, {
+          commitment: "confirmed",
+          sendOptions: {
+            skipPreflight: false,
+            preflightCommitment: "confirmed",
+          },
+        });
 
-      if (result.value.isErr()) {
-        return {
-          type: "SendTransactionFailed",
-          result: result.value.error,
-        };
+        if (result.value.isErr()) {
+          return { type: "SendTransactionFailed" as const, result: result.value.error };
+        }
+
+        txSignature.push(result.value.value);
       }
 
-      txSignature.push(result.value.value);
-    }
+      if (txSignature.length === 0)
+        throw new Error("SendTransactionsFailed")
 
-    return { type: "Success" as const, txSignature };
+      return { type: "Success" as const, txSignature };
+    } catch (e) {
+      return { type: "SendTransactionsFailed" as const }
+    }
   }
 }

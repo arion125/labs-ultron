@@ -22,12 +22,15 @@ export const loadAmmo = async (
       }
   }
 
-  await gh.sendDynamicTransactions(ix.ixs, false);
+  const tx = await gh.sendDynamicTransactions(ix.ixs, false);
+  if (tx.type !== "Success") {
+    throw new Error(tx.type)
+  }
 
   switch (ix.type) {
     case "Success":
       console.log("Fleet ammo loaded!");
-      gh.getQuattrinoBalance();
+      // gh.getQuattrinoBalance();
       break;
     case "CreateAmmoBankTokenAccount": {
       console.log("Ammo bank token account created!");
