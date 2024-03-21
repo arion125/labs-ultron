@@ -17,16 +17,14 @@ import { SageFleetHandler } from "../src/SageFleetHandler";
 import { SageGameHandler } from "../src/SageGameHandler";
 import { actionWrapper } from "../utils/actions/actionWrapper";
 import { sendNotification } from "../utils/actions/sendNotification";
-import { wait } from "../utils/actions/wait";
 // import { getBestScanSector } from "../utils/fleets/getBestScanSector";
 import { getScanConfig } from "../utils/fleets/getScanConfig";
 import { setFleet } from "../utils/inputs/setFleet";
 import { setScanInputs } from "../utils/inputs/setScanInputs";
-import { canGoAndComeBack } from "../utils/sectors/canGoAndComeBack";
+// import { canGoAndComeBack } from "../utils/sectors/canGoAndComeBack";
 import { generateRoute } from "../utils/sectors/generateRoute";
-import { sameCoordinates } from "../utils/sectors/sameCoordinates";
-import { getFleetPosition } from "../utils/fleets/getFleetPosition";
-import { getCargoUsage } from "../utils/fleets/getCargoUsage";
+/* import { sameCoordinates } from "../utils/sectors/sameCoordinates";
+import { getFleetPosition } from "../utils/fleets/getFleetPosition"; */
 
 export const scan = async (
   profilePubkey: PublicKey,
@@ -159,42 +157,14 @@ export const scan = async (
         }
       }
 
-      if (onlyDataRunner) {
-        for (let i = 0; i < 999_999; i++) {
-          const cargoState = await getCargoUsage(fleet, gh);
-          
-          if (cargoState.type !== "Success") return cargoState;
-          
-          if (cargoState.currentFleetCargoAmount >= cargoState.cargoCapacity) 
-            break;
-
-          console.log(" ");
-          console.log("Total cargo capacity:", cargoState.cargoCapacity);
-          console.log("Current cargo usage:", cargoState.currentFleetCargoAmount);
-          await actionWrapper(
-            scanSdu,
-            fleetPubkey,
-            gh,
-            fh,
-            scanConfig.scanCoolDown,
-            onlyDataRunner
-          );
-        }
-      }
-
-      if (!onlyDataRunner) {
-        for (let i = 0; i < scanConfig.maxScanAvailable; i++) {
-          console.log(" ");
-          console.log(`${i + 1}/${scanConfig.maxScanAvailable}`)
-          await actionWrapper(
-            scanSdu,
-            fleetPubkey,
-            gh,
-            fh,
-            scanConfig.scanCoolDown
-          );
-        }
-      }
+      await actionWrapper(
+        scanSdu,
+        fleetPubkey,
+        gh,
+        fh,
+        scanConfig.scanCoolDown,
+        onlyDataRunner
+      );
 
       if (sectorTo && movementType !== "") {
         for (const trip of routeBack.result) {

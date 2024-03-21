@@ -6,15 +6,19 @@ export const loadAmmo = async (
   fleetPubkey: PublicKey,
   ammoAmount: number,
   gh: SageGameHandler,
-  fh: SageFleetHandler
+  fh: SageFleetHandler,
+  ammoNeededAmountToMine: number
 ) => {
   console.log(" ");
   console.log("Loading ammo to fleet...");
 
-  let ix = await fh.ixRearmFleet(fleetPubkey, ammoAmount);
+  let ix = await fh.ixRearmFleet(fleetPubkey, ammoAmount, ammoNeededAmountToMine);
   switch (ix.type) {
     case "FleetAmmoBankIsFull":
       console.log("Your fleet ammo bank is already full");
+      return;
+    case "FleetDontNeedRearm":
+      console.log("Your fleet don't need rearm");
       return;
     default:
       if (ix.type !== "Success" && ix.type !== "CreateAmmoBankTokenAccount") {

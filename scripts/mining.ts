@@ -1,5 +1,4 @@
 import { byteArrayToString } from "@staratlas/data-source";
-import { Fleet } from "@staratlas/sage";
 import { dockToStarbase } from "../actions/dockToStarbase";
 import { exitSubwarp } from "../actions/exitSubwarp";
 import { exitWarp } from "../actions/exitWarp";
@@ -98,7 +97,7 @@ export const mining = async (
         : { type: "Success" as const, result: [] };
       if (routeBack.type !== "Success") return routeBack;
 
-      await actionWrapper(loadAmmo, fleetPubkey, MAX_AMOUNT, gh, fh);
+      await actionWrapper(loadAmmo, fleetPubkey, MAX_AMOUNT, gh, fh, miningTimeAndResourcesAmount.ammo);
       await actionWrapper(
         loadCargo,
         fleetPubkey,

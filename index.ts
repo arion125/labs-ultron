@@ -61,6 +61,7 @@ const main = async () => {
 
   const qttrBalance = await sageGameHandler.getQuattrinoBalance();
   if (qttrBalance.type !== "Success" || qttrBalance.tokenBalance == 0) return;
+  console.log(qttrBalance.message)
 
   /* const fleet = await setFleet(
     sageGameHandler,

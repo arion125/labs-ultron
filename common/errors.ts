@@ -5,6 +5,13 @@ export class NoEnoughRepairKits extends Error {
   }
 }
 
+export class FleetCargoIsFull extends Error {
+  constructor() {
+    super("FleetCargoIsFull");
+    this.name = "FleetCargoIsFull";
+  }
+}
+
 export class NoEnoughTokensToPerformLabsAction extends Error {
   constructor() {
     super("NoEnoughTokensToPerformLabsAction");

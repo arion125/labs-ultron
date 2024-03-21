@@ -581,13 +581,11 @@ export class SageGameHandler {
 
       return {
         type: "Success" as const,
+        message: `You have ${tokenBalance.value.amount} QTTR`,
         tokenBalance: tokenBalance.value.uiAmount,
       };
     } catch (e) {
-      console.log(
-        "Unable to fetch QTTR balance. If you don't have any QTTR in your wallet, please buy some and try again"
-      );
-      return { type: "UnableToLoadBalance" as const };
+      return { type: "UnableToLoadBalance" as const, message: "Unable to fetch QTTR balance. If you don't have any QTTR in your wallet, please buy some and try again" };
     }
   }
 
@@ -658,18 +656,20 @@ export class SageGameHandler {
     if (fee) {
       const qttrBalance = await this.getQuattrinoBalance()
       
-      if (qttrBalance.type !== "Success")
+      if (qttrBalance.type !== "Success") {
+        console.log(qttrBalance.message)
         return qttrBalance;
+      }
 
       if (qttrBalance.tokenBalance === 0)
         return { type: "NoEnoughTokensToPerformLabsAction" as const };
 
-      console.log(`You have ${qttrBalance.tokenBalance} QTTR`);
+      console.log(qttrBalance.message);
     }
 
     const connection = this.connection;
 
-    let feeEstimate = { priorityFeeEstimate: this.priority !== "Basic" ? 0 : 1 };
+    let feeEstimate = { priorityFeeEstimate: this.priority !== "Basic" ? 0 : 5000 };
     if (this.priority !== "None" && this.priority !== "Basic") {
       const txsEstimate = await buildDynamicTransactions(
         instructions, 

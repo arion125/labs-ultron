@@ -1061,7 +1061,7 @@ export class SageFleetHandler {
   }
 
   // OK
-  async ixRearmFleet(fleetPubkey: PublicKey, amount: number) {
+  async ixRearmFleet(fleetPubkey: PublicKey, amount: number, ammoNeededAmountToMine?: number) {
     const ixs: InstructionReturn[] = [];
 
     const connectionAndGameState = await checkConnectionAndGameState(
@@ -1129,22 +1129,33 @@ export class SageFleetHandler {
       (tokenAccount) => tokenAccount.mint.toBase58() === ammoMint.toBase58()
     );
 
-    const tokenAccountToATA = await getOrCreateAssociatedTokenAccount(
-      this._gameHandler.connection,
+    const tokenAccountToATA = await createAssociatedTokenAccountIdempotent(
       ammoMint,
       fleetAmmoBankPubkey,
       true
     );
-    const tokenAccountToPubkey = tokenAccountToATA.address;
 
-    const ix_0 = tokenAccountToATA.instructions;
-
-    if (ix_0) {
-      ixs.push(ix_0);
-      return { type: "CreateAmmoBankTokenAccount" as const, ixs };
+    try {
+      await getAccount(this._gameHandler.connection, tokenAccountToATA.address, "confirmed")
+    } catch (e) {
+      const ix_0 = tokenAccountToATA.instructions;
+      if (ix_0) {
+        ixs.push(ix_0);
+        return { type: "CreateAmmoBankTokenAccount" as const, ixs };
+      }
     }
 
+    const tokenAccountToPubkey = tokenAccountToATA.address
+
     // Calc the amount to deposit
+    if (
+      tokenAccountTo && 
+      ammoNeededAmountToMine &&
+      new BN(ammoNeededAmountToMine).lte(new BN(tokenAccountTo.amount))
+    ) {
+      return { type: "FleetDontNeedRearm" as const };
+    }
+
     let amountBN = BN.min(
       new BN(amount),
       tokenAccountTo
@@ -1605,6 +1616,37 @@ export class SageFleetHandler {
     if (!fleetAccount.fleet.state.Idle)
       return { type: "FleetIsNotIdle" as const };
 
+    const fleetKey = fleetAccount.fleet.key;
+    const fleetCargoHold = fleetAccount.fleet.data.cargoHold;
+    const miscStats = fleetAccount.fleet.data.stats.miscStats as MiscStats;
+
+    if (onlyDataRunner) {
+      const cargoState = await this.getCargoUsage(fleetAccount.fleet); 
+      if (cargoState.type !== "Success") return cargoState;
+          
+      if (cargoState.currentFleetCargoAmount >= cargoState.cargoCapacity) 
+        return { type: "FleetCargoIsFull" as const }
+    }
+
+    const repairKitMint = this._gameHandler.game?.data.mints
+      .repairKit as PublicKey;
+
+    if (!onlyDataRunner) {
+      const fleetCargoHoldsPubkey = fleetAccount.fleet.data.cargoHold;
+      const fleetCargoHoldsTokenAccounts =
+        await this._gameHandler.getParsedTokenAccountsByOwner(
+          fleetCargoHoldsPubkey
+        );
+      if (fleetCargoHoldsTokenAccounts.type !== "Success")
+        return fleetCargoHoldsTokenAccounts;
+      const tokenAccount = fleetCargoHoldsTokenAccounts.tokenAccounts.find(
+        (tokenAccount) =>
+          tokenAccount.mint.toBase58() === repairKitMint.toBase58()
+      );
+      if ((!tokenAccount || tokenAccount.amount < miscStats.scanRepairKitAmount))
+        return { type: "NoEnoughRepairKits" as const };
+    }
+
     // Get player profile data
     const playerProfilePubkey = fleetAccount.fleet.data.ownerProfile;
     const profileFactionPubkey =
@@ -1615,14 +1657,9 @@ export class SageFleetHandler {
     const gameId = this._gameHandler.gameId as PublicKey;
     const cargoProgram = this._gameHandler.cargoProgram;
     const payer = this._gameHandler.funder;
-    const fleetKey = fleetAccount.fleet.key;
-    const fleetCargoHold = fleetAccount.fleet.data.cargoHold;
-    const miscStats = fleetAccount.fleet.data.stats.miscStats as MiscStats;
     const input = { keyIndex: 0 } as ScanForSurveyDataUnitsInput;
     const surveyDataUnitTracker = this._gameHandler.surveyDataUnitTracker as PublicKey;
     const surveyDataUnitTrackerAccountSigner = this._gameHandler.surveyDataUnitTrackerAccountSigner as PublicKey;
-    const repairKitMint = this._gameHandler.game?.data.mints
-      .repairKit as PublicKey;
     const repairKitCargoType =
       this._gameHandler.getCargoTypeAddress(repairKitMint);
     const sduMint = this._gameHandler.getResourceMintAddress("sdu");
@@ -1658,22 +1695,6 @@ export class SageFleetHandler {
       true
     );
 
-    if (!onlyDataRunner) {
-      const fleetCargoHoldsPubkey = fleetAccount.fleet.data.cargoHold;
-      const fleetCargoHoldsTokenAccounts =
-        await this._gameHandler.getParsedTokenAccountsByOwner(
-          fleetCargoHoldsPubkey
-        );
-      if (fleetCargoHoldsTokenAccounts.type !== "Success")
-        return fleetCargoHoldsTokenAccounts;
-      const tokenAccount = fleetCargoHoldsTokenAccounts.tokenAccounts.find(
-        (tokenAccount) =>
-          tokenAccount.mint.toBase58() === repairKitMint.toBase58()
-      );
-      if ((!tokenAccount || tokenAccount.amount < miscStats.scanRepairKitAmount))
-        return { type: "NoEnoughRepairKits" as const };
-    }
-
     const ix_1 = SurveyDataUnitTracker.scanForSurveyDataUnits(
       program,
       cargoProgram,
@@ -1697,5 +1718,28 @@ export class SageFleetHandler {
 
     ixs.push(ix_1);
     return { type: "Success" as const, ixs };
+  }
+
+  async getCargoUsage(fleet: Fleet) {
+    const fleetStats = fleet.data.stats as ShipStats;
+    const cargoStats = fleetStats.cargoStats;
+
+    // Get fleet cargo hold
+    const fleetCargoHoldsPubkey = fleet.data.cargoHold;
+    const fleetCargoHoldsTokenAccounts =
+      await this._gameHandler.getParsedTokenAccountsByOwner(
+        fleetCargoHoldsPubkey
+      );
+    if (fleetCargoHoldsTokenAccounts.type !== "Success")
+      return fleetCargoHoldsTokenAccounts;
+    const currentFleetCargoAmount =
+      fleetCargoHoldsTokenAccounts.tokenAccounts.reduce(
+        (accumulator, currentAccount) => {
+          return accumulator + Number(currentAccount.amount);
+        },
+        0
+      );
+    
+    return { type: "Success" as const, currentFleetCargoAmount, cargoCapacity: cargoStats.cargoCapacity};
   }
 }
