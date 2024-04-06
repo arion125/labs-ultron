@@ -349,6 +349,13 @@ export class SageFleetHandler {
       planetKey
     );
     const fleetKey = fleetAccount.fleet.key;
+    const fleetFuelTank = fleetAccount.fleet.data.fuelTank;
+    const gameFuelMint = this._gameHandler.game?.data.mints.fuel as PublicKey;
+    const fleetFuelToken = getAssociatedTokenAddressSync(
+      gameFuelMint,
+      fleetFuelTank,
+      true
+    );
     const key = this._gameHandler.funder;
     const input = { keyIndex: 0 } as StartMiningAsteroidInput;
 
@@ -365,6 +372,7 @@ export class SageFleetHandler {
       planetKey,
       gameState,
       gameId,
+      fleetFuelTokenAccount,
       input
     );
 
@@ -467,7 +475,6 @@ export class SageFleetHandler {
     const ix_1 = Fleet.asteroidMiningHandler(
       program,
       cargoProgram,
-      profileFaction,
       fleetKey,
       starbasePubkey,
       mineItemPubkey,
@@ -1364,14 +1371,14 @@ export class SageFleetHandler {
   }
 
   // FIX - WIP
-  async ixReadyToExitWarp(fleetPubkey: PublicKey) {
+  /* async ixReadyToExitWarp(fleetPubkey: PublicKey) {
     const ixs: InstructionReturn[] = [];
     const ix_1 = Fleet.moveWarpHandler(this._gameHandler.program, fleetPubkey);
 
     ixs.push(ix_1);
 
     return { type: "Success" as const, ixs };
-  }
+  } */
 
   // OK
   getTimeToWarp(
@@ -1490,7 +1497,7 @@ export class SageFleetHandler {
   }
 
   // OK
-  async ixReadyToExitSubwarp(fleetPubkey: PublicKey) {
+  /* async ixReadyToExitSubwarp(fleetPubkey: PublicKey) {
     const ixs: InstructionReturn[] = [];
 
     // Check connection and game state
@@ -1542,5 +1549,5 @@ export class SageFleetHandler {
     ixs.push(ix_1);
 
     return { type: "Success" as const, ixs };
-  }
+  } */
 }

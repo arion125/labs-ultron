@@ -17,11 +17,11 @@ export class SageGame {
     // Sage Programs
     private provider: Provider;
     
-    static readonly SAGE_PROGRAM_ID = new PublicKey("SAGEqqFewepDHH6hMDcmWy7yjHPpyKLDnRXKb3Ki8e6");
+    static readonly SAGE_PROGRAM_ID = new PublicKey("SAGE2HAwep459SNq61LHvjxPk4pLPEJLoMETef7f7EE");
     static readonly PLAYER_PROFILE_PROGRAM_ID = new PublicKey("pprofELXjL5Kck7Jn5hCpwAL82DpTkSYBENzahVtbc9");
     static readonly PROFILE_FACTION_PROGRAM_ID = new PublicKey("pFACSRuobDmvfMKq1bAzwj27t6d2GJhSCHb1VcfnRmq");
-    static readonly CARGO_PROGRAM_ID = new PublicKey("Cargo8a1e6NkGyrjy4BQEW4ASGKs9KSyDyUrXMfpJoiH");
-    static readonly CRAFTING_PROGRAM_ID = new PublicKey("Craftf1EGzEoPFJ1rpaTSQG1F6hhRRBAf4gRo9hdSZjR");
+    static readonly CARGO_PROGRAM_ID = new PublicKey("Cargo2VNTPPTi9c1vq1Jw5d3BWUNr18MjRtSupAghKEk");
+    static readonly CRAFTING_PROGRAM_ID = new PublicKey("CRAFT2RPXPJWCEix4WpJST3E7NLf79GTqZUL75wngXo5");
     
     private sageProgram: SageIDLProgram;
     private playerProfileProgram: PlayerProfileIDLProgram;

@@ -1,8 +1,6 @@
 import { byteArrayToString } from "@staratlas/data-source";
 import { Fleet } from "@staratlas/sage";
 import { dockToStarbase } from "../actions/dockToStarbase";
-import { exitSubwarp } from "../actions/exitSubwarp";
-import { exitWarp } from "../actions/exitWarp";
 import { loadAmmo } from "../actions/loadAmmo";
 import { loadCargo } from "../actions/loadCargo";
 import { loadFuel } from "../actions/loadFuel";
@@ -114,7 +112,6 @@ export const mining = async (
               fh,
               !trip.to[0].eq(starbase[0]) || !trip.to[1].eq(starbase[1])
             );
-            await actionWrapper(exitWarp, fleetPubkey, gh, fh);
           }
           if (!trip.warp) {
             await actionWrapper(
@@ -125,7 +122,6 @@ export const mining = async (
               gh,
               fh
             );
-            await actionWrapper(exitSubwarp, fleetPubkey, gh, fh);
           }
         }
       }
@@ -152,7 +148,6 @@ export const mining = async (
               fh,
               true
             );
-            await actionWrapper(exitWarp, fleetPubkey, gh, fh);
           }
           if (!trip.warp) {
             await actionWrapper(
@@ -163,7 +158,6 @@ export const mining = async (
               gh,
               fh
             );
-            await actionWrapper(exitSubwarp, fleetPubkey, gh, fh);
           }
         }
       }

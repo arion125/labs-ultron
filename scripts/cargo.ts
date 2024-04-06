@@ -1,8 +1,6 @@
 import { byteArrayToString } from "@staratlas/data-source";
 import { Fleet } from "@staratlas/sage";
 import { dockToStarbase } from "../actions/dockToStarbase";
-import { exitSubwarp } from "../actions/exitSubwarp";
-import { exitWarp } from "../actions/exitWarp";
 import { loadCargo } from "../actions/loadCargo";
 import { loadFuel } from "../actions/loadFuel";
 import { subwarpToSector } from "../actions/subwarpToSector";
@@ -103,7 +101,6 @@ export const cargo = async (
             fh,
             true
           );
-          await actionWrapper(exitWarp, fleetPubkey, gh, fh);
         }
         if (!trip.warp) {
           await actionWrapper(
@@ -114,7 +111,6 @@ export const cargo = async (
             gh,
             fh
           );
-          await actionWrapper(exitSubwarp, fleetPubkey, gh, fh);
         }
       }
 
@@ -156,7 +152,6 @@ export const cargo = async (
             fh,
             true
           );
-          await actionWrapper(exitWarp, fleetPubkey, gh, fh);
         }
         if (!trip.warp) {
           await actionWrapper(
@@ -167,7 +162,6 @@ export const cargo = async (
             gh,
             fh
           );
-          await actionWrapper(exitSubwarp, fleetPubkey, gh, fh);
         }
       }
 

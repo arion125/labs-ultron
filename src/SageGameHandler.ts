@@ -48,9 +48,7 @@ import {
   Sector,
   Starbase,
   StarbasePlayer,
-  betterGetTokenAccountsByOwner,
   getCargoPodsByAuthority,
-  getOrCreateAssociatedTokenAccount,
 } from "@staratlas/sage";
 import { quattrinoTokenPubkey } from "../common/constants";
 import { SectorCoordinates } from "../common/types";
@@ -452,7 +450,7 @@ export class SageGameHandler {
     }
   }
 
-  async getOrCreateAssociatedTokenAccount(mint: PublicKey, owner: PublicKey) {
+ /*  async getOrCreateAssociatedTokenAccount(mint: PublicKey, owner: PublicKey) {
     const { address, instructions } = await getOrCreateAssociatedTokenAccount(
       this.provider.connection,
       mint,
@@ -461,7 +459,7 @@ export class SageGameHandler {
     );
 
     return { address, instructions };
-  }
+  } */
 
   getSagePlayerProfileAddress(playerProfile: PublicKey) {
     if (!this.gameId) {
@@ -533,7 +531,7 @@ export class SageGameHandler {
     );
   }
 
-  async getParsedTokenAccountsByOwner(owner: PublicKey) {
+  /* async getParsedTokenAccountsByOwner(owner: PublicKey) {
     try {
       const tokenAccounts = (await betterGetTokenAccountsByOwner(
         this.connection,
@@ -543,7 +541,7 @@ export class SageGameHandler {
     } catch (e) {
       return { type: "TokenAccountsNotFound" as const };
     }
-  }
+  } */
 
   ixBurnQuattrinoToken() {
     const fromATA = getAssociatedTokenAddressSync(

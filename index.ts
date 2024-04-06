@@ -129,9 +129,9 @@ const test = async () => {
   // 6. Play with galactic marketplace (GalacticMarketplace.ts)
   // ...
 
-  // const data = await sage.findResourcesByPlanet(sage.planets.find(item => item.data.planetType === PlanetType.AsteroidBelt)!.key)
+  const data = await sage.findResourcesAccountByPlanetAsync(sage.getPlanets().find(item => item.data.planetType === PlanetType.AsteroidBelt)!.key)
 
-  // console.log(data);
+  console.log(data);
 }
 
 test().catch((err) => {

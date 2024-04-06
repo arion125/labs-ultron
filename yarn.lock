@@ -223,10 +223,10 @@
     superstruct "^0.15.4"
     toml "^3.0.0"
 
-"@staratlas/cargo@^0.10.0":
-  version "0.10.0"
-  resolved "https://registry.yarnpkg.com/@staratlas/cargo/-/cargo-0.10.0.tgz#9cec9de72598d8c0c209c066c51427da87f41157"
-  integrity sha512-UfiLgvInbKWQyycVPZ8z8pPDej8DFzSZlMXqsR+nrmqmzq3V9QEaATROiTlf1Ii3hv+BYpZjTnxTriZCN3YSnQ==
+"@staratlas/cargo@^1.0.0":
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/@staratlas/cargo/-/cargo-1.0.0.tgz#43cd4ff34499ea64dd98485b3ab50d7123bfe41c"
+  integrity sha512-Wmlesx4OTEMbvAa2YYU/a2WNeul6rSbrKNuRre06RmY951QzxBklibtAlzJ11pQOJ2hVLaLig4N7MTk19MEV8Q==
   dependencies:
     "@solana/spl-token" "^0.3.7"
     "@solana/web3.js" "^1.74.0"
@@ -234,10 +234,10 @@
     "@staratlas/data-source" "^0.7.0"
     "@staratlas/player-profile" "^0.9.0"
 
-"@staratlas/crafting@^0.10.0":
-  version "0.10.0"
-  resolved "https://registry.yarnpkg.com/@staratlas/crafting/-/crafting-0.10.0.tgz#aa53e5c07a7716233b777388382e997965492088"
-  integrity sha512-WDDtiU6sE1xJaVVvv3rm7zwT9gSUsWvpL2xPBwwD4CfCu9n5o+3THPuSdcj6VM6010hSFZTruz1nDkAxebFOTw==
+"@staratlas/crafting@^1.0.0":
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/@staratlas/crafting/-/crafting-1.0.0.tgz#7d1f956035ddafee06d4b3e2ddd5889c9a65fd53"
+  integrity sha512-cVLGZst7/IHhmrOMNn3GL33tDRgjjL/eSLI8HinC2nWT7x/JhOuKbkCG11jIYNinVS+40+Y7W8OjzcZkT/Ew2Q==
   dependencies:
     "@solana/spl-token" "^0.3.7"
     "@solana/web3.js" "^1.74.0"
@@ -270,6 +270,17 @@
     "@staratlas/anchor" "^0.25.0"
     "@staratlas/data-source" "^0.7.0"
 
+"@staratlas/points@^1.0.0":
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/@staratlas/points/-/points-1.0.0.tgz#fd6024d4e17c58e3c6404bb7136fc5daf8931a3b"
+  integrity sha512-fJ5KGdLudKu67AvbOpqy4q0uwfgXmFqAaHHToJ8lz57s1tRrQgB6/lPHIwtw41B1/iH/4l59uWmNnScdhZHHtQ==
+  dependencies:
+    "@solana/spl-token" "^0.3.7"
+    "@solana/web3.js" "^1.74.0"
+    "@staratlas/anchor" "^0.25.0"
+    "@staratlas/data-source" "^0.7.0"
+    "@staratlas/player-profile" "^0.9.0"
+
 "@staratlas/profile-faction@^0.4.0":
   version "0.4.0"
   resolved "https://registry.yarnpkg.com/@staratlas/profile-faction/-/profile-faction-0.4.0.tgz#0cccfe0db82a16f19e2f54efc7eca63639075600"
@@ -281,18 +292,19 @@
     "@staratlas/data-source" "^0.7.0"
     "@staratlas/player-profile" "^0.9.0"
 
-"@staratlas/sage@^0.10.0":
-  version "0.10.0"
-  resolved "https://registry.yarnpkg.com/@staratlas/sage/-/sage-0.10.0.tgz#3236622cc177612696eff7e2d694de3772fb7f53"
-  integrity sha512-5mMpR5PIVDW62z6PKeOBQ4SNu8EeBuIHDvZVyCDWkudpRGn4K5FWKjKhcSnUK1yL1aH6YspUpYnkvK3Bp7CyTg==
+"@staratlas/sage@^1.0.0":
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/@staratlas/sage/-/sage-1.0.0.tgz#3572acfbd84e31671f65ed9c219ae6d63441f39c"
+  integrity sha512-kv/GraL78hWz70hxaSZO91Jy7iPPiFU9ilxRON5lS3kYHVGE57oNibpl4DTcNBSOGuQJenIiHfUTLn5wJx7/fw==
   dependencies:
     "@solana/spl-token" "^0.3.7"
     "@solana/web3.js" "^1.74.0"
     "@staratlas/anchor" "^0.25.0"
-    "@staratlas/cargo" "^0.10.0"
-    "@staratlas/crafting" "^0.10.0"
+    "@staratlas/cargo" "^1.0.0"
+    "@staratlas/crafting" "^1.0.0"
     "@staratlas/data-source" "^0.7.0"
     "@staratlas/player-profile" "^0.9.0"
+    "@staratlas/points" "^1.0.0"
     "@staratlas/profile-faction" "^0.4.0"
     "@types/lodash" "^4.14.191"
     lodash "^4.17.21"
