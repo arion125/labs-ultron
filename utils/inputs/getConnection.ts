@@ -12,7 +12,7 @@ export const getConnection = (profile: Profile) => {
     if (cr.type === "RpcFileNotFound") return cr;
 
     const connection = new Connection(cr.result.toString(), "confirmed");
-    return { type: "Success" as const, result: connection };
+    return { type: "Success" as const, data: connection };
   } catch (e) {
     return { type: "GetConnectionError" as const };
   }

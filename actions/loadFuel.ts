@@ -2,17 +2,17 @@ import { PublicKey } from "@solana/web3.js";
 import { SageFleetHandler } from "../src/SageFleetHandler";
 import { SageGameHandler } from "../src/SageGameHandler";
 import { wait } from "../utils/actions/wait";
+import { SageFleet } from "../src/SageFleet";
+import { BN } from "@staratlas/anchor";
 
 export const loadFuel = async (
-  fleetPubkey: PublicKey,
-  fuelAmount: number,
-  gh: SageGameHandler,
-  fh: SageFleetHandler
+  fleet: SageFleet,
+  fuelAmount: BN
 ) => {
   console.log(" ");
   console.log("Loading fuel to fleet...");
 
-  let ix = await fh.ixRefuelFleet(fleetPubkey, fuelAmount);
+  let ix = await fleet.ixLoadFuel(fuelAmount);
   switch (ix.type) {
     case "FleetFuelTankIsFull":
       console.log("Your fleet fuel tank is already full");

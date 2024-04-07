@@ -372,7 +372,7 @@ export class SageFleetHandler {
       planetKey,
       gameState,
       gameId,
-      fleetFuelTokenAccount,
+      fleetFuelToken,
       input
     );
 

@@ -1,26 +1,29 @@
 #!/usr/bin/env node
 
-import { Connection, Keypair } from "@solana/web3.js";
+// import { Connection, Keypair } from "@solana/web3.js";
 import { version } from "./package.json";
-import { cargo } from "./scripts/cargo";
+/* import { cargo } from "./scripts/cargo";
 import { mining } from "./scripts/mining";
-import { SageFleetHandler } from "./src/SageFleetHandler";
+import { SageFleetHandler } from "./src/SageFleetHandler"; */
 import { SageGame } from "./src/SageGame";
+import { SagePlayer } from "./src/SagePlayer";
 import { getConnection } from "./utils/inputs/getConnection";
 import { getKeypairFromSecret } from "./utils/inputs/getKeypairFromSecret";
 import { inputProfile } from "./utils/inputs/inputProfile";
-import { loadGame } from "./utils/inputs/loadGame";
+// import { loadGame } from "./utils/inputs/loadGame";
 import { resetProfile } from "./utils/inputs/resetProfile";
-import { setActivity } from "./utils/inputs/setActivity";
+/* import { setActivity } from "./utils/inputs/setActivity";
 import { setCycles } from "./utils/inputs/setCycles";
-import { setFleet } from "./utils/inputs/setFleet";
+import { setFleet } from "./utils/inputs/setFleet"; */
 import { setStart } from "./utils/inputs/setStart";
 import { setupProfileData } from "./utils/inputs/setupProfileData";
-import { SectorCoordinates } from "./common/types";
+/* import { SectorCoordinates } from "./common/types";
+import { SagePlayer } from "./src/SagePlayer"; */
+import { miningV2 } from "./scripts/miningV2";
 import { PlanetType } from "@staratlas/sage";
-import { SagePlayer } from "./src/SagePlayer";
+// import { SageFleet } from "./src/SageFleet";
 
-const main = async () => {
+/* const main = async () => {
   console.log(`Welcome to Ultron ${version}!`);
 
   const { startOption } = await setStart();
@@ -99,7 +102,7 @@ const main = async () => {
     default:
       return;
   }
-};
+}; */
 
 /* main().catch((err) => {
   console.error(err);
@@ -107,31 +110,71 @@ const main = async () => {
 }); */
 
 const test = async () => {
-  const keypair = Keypair.generate()
+  console.log(`Welcome to Ultron ${version}!`);
 
-  const connection = new Connection("https://rpc.ironforge.network/mainnet?apiKey=01HR88Y5Z7MNBJ7YPQ2RAP2VNP")
+  const { startOption } = await setStart();
+
+  if (startOption === "Settings") {
+    await resetProfile();
+    return;
+  }
+
+  // qui l'utente sceglie il profilo desiderato
+  const { profile } = await inputProfile();
+
+  // qui si controlla se il profilo esiste già, se no, lo si crea
+  await setupProfileData(profile);
+
+  // qui si impostano il keypair e la connection
+  const keypair = await getKeypairFromSecret(profile);
+
+  const connection = getConnection(profile);
+
+  // FIX: se la connessione non è andata a buon fine, Ultron riprova
+  if (connection.type !== "Success") {
+    return;
+  }
+  
+  /* const keypair = Keypair.generate()
+  
+  const connection = new Connection("https://rpc.ironforge.network/mainnet?apiKey=01HR88Y5Z7MNBJ7YPQ2RAP2VNP") */
+
 
   // 1. Setup environment (SageGame.ts) [keypair required]
-  const sage = await SageGame.init(keypair, connection);
+  const sage = await SageGame.init(keypair, connection.data);
+
 
   // 2. Setup player (SagePlayer.ts)
-  // const player = await SagePlayer.init(sage);
+  const playerProfiles = await sage.getPlayerProfilesAsync();
+  if (playerProfiles.type !== "Success") throw new Error(playerProfiles.type);
 
-  // 3. Play with fleets (SageFleet.ts)
+  const player = await SagePlayer.init(sage, playerProfiles.data[0]);
+
+
+  // 3. Play with mining
+  const mining = await miningV2(player);
+
+
+  // 4. Play with cargo
   // ...
 
-  // 4. Play with scanning (SageScan.ts)
+
+  // 5. Play with scanning
   // ...
 
-  // 5. Play with crafting (SageCrafting.ts)
+
+  // 6. Play with crafting (SageCrafting.ts)
   // ...
 
-  // 6. Play with galactic marketplace (GalacticMarketplace.ts)
+
+  // 7. Play with galactic marketplace (GalacticMarketplace.ts)
   // ...
 
-  const data = await sage.findResourcesAccountByPlanetAsync(sage.getPlanets().find(item => item.data.planetType === PlanetType.AsteroidBelt)!.key)
 
-  console.log(data);
+  const data = await sage.getResourcesByPlanet(sage.getPlanets().find(item => item.data.planetType === PlanetType.AsteroidBelt)!)
+  if (data.type !== "Success") throw new Error(data.type);
+  console.log(sage.getResourceName(data.data[0]));
+
 }
 
 test().catch((err) => {

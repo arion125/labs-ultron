@@ -1,123 +1,66 @@
 import { PublicKey } from "@solana/web3.js";
 import { SageGame } from "./SageGame";
 import { PlayerProfile } from "@staratlas/player-profile";
+import { ProfileFactionAccount } from "@staratlas/profile-faction";
 import { readFromRPCOrError, readAllFromRPC, stringToByteArray } from "@staratlas/data-source";
-import { Fleet, SagePlayerProfile } from "@staratlas/sage";
+import { Fleet, SagePlayerProfile, Starbase, StarbasePlayer } from "@staratlas/sage";
 
 export class SagePlayer {
 
     private sageGame: SageGame;
-    private playerProfilePublicKey!: PublicKey;
-    private playerProfileAccount!: PlayerProfile;
-    private sagePlayerProfiles!: SagePlayerProfile[]; // player specific data in sage
+    private playerProfile!: PlayerProfile;
 
-    private constructor(sageGame: SageGame) {
+    private constructor(sageGame: SageGame, playerProfile: PlayerProfile) {
         this.sageGame = sageGame;
+        this.playerProfile = playerProfile;
     }
 
-    static async init(sageGame: SageGame): Promise<SagePlayer> {
-        const player = new SagePlayer(sageGame);
-        
-        const playerProfilePublicKey = await player.getPlayerProfileAddress(sageGame.getPlayerKeypair().publicKey);
-        if (playerProfilePublicKey.type === "PlayerProfileAddressNotFound") throw new Error(playerProfilePublicKey.type);
-
-        const playerProfileAccount = await player.getPlayerProfileAccountAsync(playerProfilePublicKey.playerProfilePublicKey);
-        if (playerProfileAccount.type === "PlayerProfileNotFound") throw new Error(playerProfileAccount.type);
-
-        const sagePlayerProfiles = await player.findAllSagePlayerProfilesByPlayerProfile(playerProfilePublicKey.playerProfilePublicKey);
-        if (sagePlayerProfiles.type === "SagePlayerProfilesNotFound") throw new Error(sagePlayerProfiles.type);
-
-        player.playerProfilePublicKey = playerProfilePublicKey.playerProfilePublicKey;
-        player.playerProfileAccount = playerProfileAccount.playerProfileAccount;
-        player.sagePlayerProfiles = sagePlayerProfiles.sagePlayerProfiles;
-        
-        return player;
+    static async init(sageGame: SageGame, playerProfile: PlayerProfile): Promise<SagePlayer> {
+        return new SagePlayer(sageGame, playerProfile);
     }
 
-    // Step 1: Get the Player Profile Address from the player public key
-    async getPlayerProfileAddress(playerPublicKey: PublicKey) {
-        const [accountInfo] = await this.sageGame.getProvider().connection.getProgramAccounts(
-          new PublicKey(SageGame.PLAYER_PROFILE_PROGRAM_ID),
-          {
-            filters: [
-              {
-                memcmp: {
-                  offset: 30,
-                  bytes: playerPublicKey.toBase58(),
-                },
-              },
-            ],
-          }
-        );
-          
-        if (accountInfo) {
-            return { type: "Success" as const, playerProfilePublicKey: accountInfo.pubkey };
-        } else {
-            return { type: "PlayerProfileAddressNotFound" as const}
-        }
+    getPlayerProfile() {
+      return this.playerProfile;
     }
-  
-    // Step 2. Get Player Profile Account
-    async getPlayerProfileAccountAsync(playerProfilePublicKey: PublicKey) {
-        try {
-            const playerProfileAccount = await readFromRPCOrError(
-            this.sageGame.getProvider().connection,
-            this.sageGame.getPlayerProfileProgram(),
-            playerProfilePublicKey,
-            PlayerProfile,
-            "confirmed"
-            );
-        
-            return { type: "Success" as const, playerProfileAccount };
-        } catch (e) {
-            return { type: "PlayerProfileNotFound" as const };
-        }
-    }
-
-    // Step 3A. Get all the SagePlayerProfile Accounts from the player profile public key
-    async findAllSagePlayerProfilesByPlayerProfile(playerProfilePublicKey: PublicKey) {
-      try {  
-        const fetchSagePlayerProfiles = await readAllFromRPC(
-          this.sageGame.getProvider().connection,
-          this.sageGame.getSageProgram(),
-          SagePlayerProfile,
-          "confirmed",
-          [
-            {
-              memcmp: {
-                offset: 9,
-                bytes: playerProfilePublicKey.toBase58(),
-              },
-            },
-          ]
-        );
     
-        const sagePlayerProfiles = fetchSagePlayerProfiles.flatMap((sagePlayerProfile) =>
-          sagePlayerProfile.type === "ok" ? [sagePlayerProfile.data] : []
-        );
-
-        if (sagePlayerProfiles.length === 0) throw new Error();
-
-        return { type: "Success" as const, sagePlayerProfiles };
-      } catch (e) {
-        return { type: "SagePlayerProfilesNotFound" as const };
-      }
+    getSageGame() {
+      return this.sageGame;
     }
 
-    getPlayerProfilePublicKey() {
-        return this.playerProfilePublicKey;
+    getProfileFactionAddress() {
+      const [profileFaction] = ProfileFactionAccount.findAddress(
+        this.sageGame.getPlayerProfileFactionProgram(),
+        this.playerProfile.key
+      );
+  
+      return profileFaction;
     }
 
-    getPlayerProfileAccount() {
-        return this.playerProfileAccount;
+    getSagePlayerProfileAddress() { 
+      const [sagePlayerProfile] = SagePlayerProfile.findAddress(
+        this.sageGame.getSageProgram(),
+        this.playerProfile.key,
+        this.sageGame.getGame().key
+      );
+  
+      return sagePlayerProfile;
     }
 
-    getSagePlayerProfiles() {
-        return this.sagePlayerProfiles;
+    getStarbasePlayerAddress(
+      starbase: Starbase
+    ) { 
+      const [starbasePlayer] = StarbasePlayer.findAddress(
+        this.sageGame.getSageProgram(),
+        starbase.key,
+        this.getSagePlayerProfileAddress(),
+        starbase.data.seqId
+      );
+  
+      return starbasePlayer;
     }
 
     // Step 3B. Get all fleets owned by a player profile
-    async findAllFleetsByPlayerProfile(playerProfilePublicKey: PublicKey) {
+    async getAllFleetsAsync() {
       try {  
         const fetchFleets = await readAllFromRPC(
           this.sageGame.getProvider().connection,
@@ -128,7 +71,7 @@ export class SagePlayer {
             {
               memcmp: {
                 offset: 41,
-                bytes: playerProfilePublicKey.toBase58(),
+                bytes: this.playerProfile.key.toBase58(),
               },
             },
           ]
@@ -140,9 +83,25 @@ export class SagePlayer {
 
         if (fleets.length === 0) throw new Error();
 
-        return { type: "Success" as const, fleets };
+        return { type: "Success" as const, data: fleets };
       } catch (e) {
         return { type: "FleetsNotFound" as const };
       }
     }
+
+    async getFleetByKeyAsync(fleetKey: PublicKey) {
+      try {
+        const fleetAccount = await readFromRPCOrError(
+          this.sageGame.getProvider().connection,
+          this.sageGame.getSageProgram(),
+          fleetKey,
+          Fleet,
+          "confirmed"
+        );
+        return { type: "Success" as const, data: fleetAccount };
+      } catch (e) {
+        return { type: "FleetNotFound" as const };
+      }
+    }
+    
 }
