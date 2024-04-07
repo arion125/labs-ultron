@@ -238,6 +238,9 @@ export class SageFleet {
 
       if (!fuelTankAta) return { type: "FuelTankATAError" as const };
 
+      // Calc the amount to deposit
+      // ...
+
       const ix_1 = Fleet.depositCargoToFleet(
         this.getSageGame().getSageProgram(),
         this.getSageGame().getCargoProgram(),
