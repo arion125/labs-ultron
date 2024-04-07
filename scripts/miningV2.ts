@@ -27,6 +27,8 @@ import { setCycles } from "../utils/inputs/setCycles";
 import { setStarbaseV2 } from "../utils/inputsV2/setStarbase";
 import { setResourceToMine } from "../utils/inputsV2/setResourceToMine";
 import { setMovementTypeV2 } from "../utils/inputsV2/setMovementType";
+import { BN } from "@staratlas/anchor";
+import { ResourceName } from "../src/SageGame";
 
 export const miningV2 = async (
   player: SagePlayer,
@@ -41,7 +43,7 @@ export const miningV2 = async (
   // 3. set mining sector
   const starbase = await setStarbaseV2(fleet.data);
   if (starbase.type !== "Success") return starbase;
-  const sector = player.getSageGame().getSectorByCoordsOrKey(starbase.data.data.sector as SectorCoordinates);
+  const sector = player.getSageGame().getSectorByCoords(starbase.data.data.sector as SectorCoordinates);
   if (sector.type !== "Success") return sector;
 
   // 4. set mining resource
@@ -57,10 +59,14 @@ export const miningV2 = async (
   // 7. start mining loop
   for (let i = 0; i < cycles; i++) {
     // 1. load fuel
+    // await actionWrapper(loadFuel, fleet.data, new BN(1000));
 
     // 2. load ammo
+    // await actionWrapper(loadAmmo, fleet.data, new BN(1000));
 
     // 3. load food
+    await actionWrapper(loadCargo, fleet.data, ResourceName.Food, new BN(3000));
+    //await actionWrapper(unloadCargo, fleet.data, ResourceName.Food, new BN(500));
 
     // 4. undock from starbase
 
@@ -78,4 +84,6 @@ export const miningV2 = async (
 
     // 11. unload food
   }
+
+  return { type: "Success" as const };
 };

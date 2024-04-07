@@ -1,26 +1,18 @@
-import { BN } from "@project-serum/anchor";
-import { PublicKey } from "@solana/web3.js";
-import { ResourceType } from "../common/resources";
-import { SageFleetHandler } from "../src/SageFleetHandler";
-import { SageGameHandler } from "../src/SageGameHandler";
+import { BN } from "@staratlas/anchor";
+import { ResourceName } from "../src/SageGame";
+import { SageFleet } from "../src/SageFleet";
 
 export const unloadCargo = async (
-  fleetPubkey: PublicKey,
-  resourceName: ResourceType,
-  amount: BN,
-  gh: SageGameHandler,
-  fh: SageFleetHandler
+  fleet: SageFleet,
+  resourceName: ResourceName,
+  amount: BN
 ) => {
   console.log(" ");
   console.log(`Unloading ${amount} ${resourceName} from fleet cargo...`);
 
-  const mintToken = gh.getResourceMintAddress(resourceName);
+  let ix = await fleet.ixLoadCargo(resourceName, amount);
 
-  let ix = await fh.ixWithdrawCargoFromFleet(fleetPubkey, mintToken, amount);
   switch (ix.type) {
-    case "FleetCargoHoldTokenAccountNotFound": {
-      return;
-    }
     default: {
       if (ix.type !== "Success") {
         throw new Error(ix.type);
@@ -28,8 +20,8 @@ export const unloadCargo = async (
     }
   }
 
-  await gh.sendDynamicTransactions(ix.ixs, true);
+  await fleet.getSageGame().sendDynamicTransactions(ix.ixs, false);
 
   console.log("Fleet cargo unloaded!");
-  await gh.getQuattrinoBalance();
+  await fleet.getSageGame().getQuattrinoBalance();
 };

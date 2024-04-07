@@ -104,4 +104,9 @@ export class SagePlayer {
       }
     }
     
+    async getStarbasePlayerPodAsync(starbase: Starbase) {
+      const starbasePlayerPod = await this.getSageGame().getCargoPodsByAuthority(this.getStarbasePlayerAddress(starbase));
+      if (starbasePlayerPod.type !== "Success") return starbasePlayerPod;
+      return { type: "Success" as const, data: starbasePlayerPod.data[0] };
+    }
 }

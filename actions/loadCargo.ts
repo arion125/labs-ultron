@@ -1,21 +1,17 @@
-import { PublicKey } from "@solana/web3.js";
-import { ResourceType } from "../common/resources";
-import { SageFleetHandler } from "../src/SageFleetHandler";
-import { SageGameHandler } from "../src/SageGameHandler";
+import { SageFleet } from "../src/SageFleet";
+import { ResourceName } from "../src/SageGame";
+import { BN } from "@staratlas/anchor";
 
 export const loadCargo = async (
-  fleetPubkey: PublicKey,
-  resourceName: ResourceType,
-  amount: number,
-  gh: SageGameHandler,
-  fh: SageFleetHandler
+  fleet: SageFleet,
+  resourceName: ResourceName,
+  amount: BN
 ) => {
   console.log(" ");
   console.log(`Loading ${amount} ${resourceName} to fleet cargo...`);
 
-  const mintToken = gh.getResourceMintAddress(resourceName);
+  let ix = await fleet.ixLoadCargo(resourceName, amount);
 
-  let ix = await fh.ixDepositCargoToFleet(fleetPubkey, mintToken, amount);
   switch (ix.type) {
     case "FleetCargoIsFull":
       console.log("Your fleet cargo is full");
@@ -26,8 +22,8 @@ export const loadCargo = async (
       }
   }
 
-  await gh.sendDynamicTransactions(ix.ixs, true);
+  await fleet.getSageGame().sendDynamicTransactions(ix.ixs, false);
 
   console.log("Fleet cargo loaded!");
-  await gh.getQuattrinoBalance();
+  await fleet.getSageGame().getQuattrinoBalance();
 };

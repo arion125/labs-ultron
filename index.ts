@@ -132,6 +132,7 @@ const test = async () => {
 
   // FIX: se la connessione non è andata a buon fine, Ultron riprova
   if (connection.type !== "Success") {
+    console.log("Connection failed, please retry.")
     return;
   }
   
@@ -146,14 +147,20 @@ const test = async () => {
 
   // 2. Setup player (SagePlayer.ts)
   const playerProfiles = await sage.getPlayerProfilesAsync();
-  if (playerProfiles.type !== "Success") throw new Error(playerProfiles.type);
+  if (playerProfiles.type !== "Success") {
+    console.log("Error getting player profiles.")
+    return;
+  }
 
   const player = await SagePlayer.init(sage, playerProfiles.data[0]);
 
 
   // 3. Play with mining
   const mining = await miningV2(player);
-
+  if (mining.type !== "Success") {
+    console.log("Mining failed.")
+    return;
+  }
 
   // 4. Play with cargo
   // ...
@@ -170,10 +177,12 @@ const test = async () => {
   // 7. Play with galactic marketplace (GalacticMarketplace.ts)
   // ...
 
+  /* const data = await sage.getPlanets()
+  console.log(data) */
 
-  const data = await sage.getResourcesByPlanet(sage.getPlanets().find(item => item.data.planetType === PlanetType.AsteroidBelt)!)
+ /*  const data = await sage.getResourcesByPlanet(sage.getPlanets().find(item => item.data.planetType === PlanetType.AsteroidBelt)!)
   if (data.type !== "Success") throw new Error(data.type);
-  console.log(sage.getResourceName(data.data[0]));
+  console.log(sage.getResourceName(data.data[0])); */
 
 }
 

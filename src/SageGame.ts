@@ -1,14 +1,16 @@
 import { Provider, AnchorProvider, Program, Wallet, BN } from "@staratlas/anchor";
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
-import { readFromRPCOrError, readAllFromRPC, stringToByteArray } from "@staratlas/data-source";
+import { readFromRPCOrError, readAllFromRPC, stringToByteArray, InstructionReturn } from "@staratlas/data-source";
 import { PLAYER_PROFILE_IDL, PlayerProfileIDLProgram } from "@staratlas/player-profile";
-import { Fleet, Game, GameState, MineItem, Planet, Resource, SAGE_IDL, SageIDLProgram, SagePlayerProfile, SageProgram, Sector, Star, Starbase, getCargoPodsByAuthority } from "@staratlas/sage";
+import { Fleet, Game, GameState, MineItem, Planet, PlanetType, Resource, SAGE_IDL, SageIDLProgram, Sector, Star, Starbase, calculateDistance, getCargoPodsByAuthority } from "@staratlas/sage";
 import { ProfileFactionIDLProgram, PROFILE_FACTION_IDL } from "@staratlas/profile-faction";
-import { CargoIDLProgram, CARGO_IDL } from "@staratlas/cargo";
+import { CargoIDLProgram, CARGO_IDL, CargoStatsDefinition, CargoType } from "@staratlas/cargo";
 import { CraftingIDLProgram, CRAFTING_IDL } from "@staratlas/crafting";
 import { PlayerProfile } from "@staratlas/player-profile";
 import { SectorCoordinates } from "../common/types";
-import { AsyncSigner, byteArrayToString, getParsedTokenAccountsByOwner, createAssociatedTokenAccountIdempotent, keypairToAsyncSigner } from "@staratlas/data-source";
+import { AsyncSigner, byteArrayToString, getParsedTokenAccountsByOwner, createAssociatedTokenAccountIdempotent, keypairToAsyncSigner, buildDynamicTransactions, sendTransaction } from "@staratlas/data-source";
+import { createBurnInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
+import { quattrinoTokenPubkey } from "../common/constants";
 
 export enum ResourceName {
   Food = "Food",
@@ -44,6 +46,12 @@ export enum ResourceName {
   Polymer = "Polymer",
   Steel = "Steel",
 }
+
+export type MinableResource = {
+  resource: Resource;
+  mineItem: MineItem;
+}
+
 export class SageGame {
     
     // Sage Programs
@@ -108,6 +116,8 @@ export class SageGame {
     private resources!: Resource[];
     private starbases!: Starbase[];
 
+    private cargoStatsDefinition!: CargoStatsDefinition;
+    
     private playerKeypair!: Keypair;
     private funder: AsyncSigner;
     private connection!: Connection;
@@ -151,9 +161,10 @@ export class SageGame {
     static async init(signer: Keypair, connection: Connection): Promise<SageGame> {
       const game = new SageGame(signer, connection);
       
-      const [gameAccount, gameStateAccount, sectors, stars, planets, mineItems, resources, starbases] = await Promise.all([
+      const [gameAccount, gameStateAccount, cargoStatsDefinition, sectors, stars, planets, mineItems, resources, starbases] = await Promise.all([
         game.getGameAccount(),
         game.getGameStateAccount(),
+        game.getCargoStatsDefinitionAccount(),
         game.getAllSectorsAccount(),
         game.getAllStarsAccount(),
         game.getAllPlanetsAccount(),
@@ -164,6 +175,7 @@ export class SageGame {
 
       if (gameAccount.type === "GameNotFound") throw new Error(gameAccount.type);
       if (gameStateAccount.type === "GameStateNotFound") throw new Error(gameStateAccount.type);
+      if (cargoStatsDefinition.type === "CargoStatsDefinitionNotFound") throw new Error(cargoStatsDefinition.type);
       if (sectors.type === "SectorsNotFound") throw new Error(sectors.type);
       if (stars.type === "StarsNotFound") throw new Error(stars.type);
       if (planets.type === "PlanetsNotFound") throw new Error(planets.type);
@@ -173,6 +185,7 @@ export class SageGame {
 
       game.game = gameAccount.data;
       game.gameState = gameStateAccount.data;
+      game.cargoStatsDefinition = cargoStatsDefinition.data;
       game.sectors = sectors.data;
       game.stars = stars.data;
       game.planets = planets.data;
@@ -273,6 +286,31 @@ export class SageGame {
     /** END GAME STATE */
 
 
+    /** CARGO STATS DEFINITION */
+    // cargo Stats Definiton Account - fetch only one per game
+    private async getCargoStatsDefinitionAccount() {
+      try {
+        const [fetchCargoStatsDefinitionAccount] = await readAllFromRPC(
+          this.provider.connection,
+          this.cargoProgram,
+          CargoStatsDefinition,
+          "confirmed",
+        );
+
+        if (fetchCargoStatsDefinitionAccount.type !== "ok") throw new Error()
+
+        return { type: "Success" as const, data: fetchCargoStatsDefinitionAccount.data };
+      } catch (e) {
+        return { type: "CargoStatsDefinitionNotFound" as const };
+      }
+    }
+
+    getCargoStatsDefinition() {
+      return this.cargoStatsDefinition;
+    }
+    /** END CARGO STATS DEFINITION */
+
+
     /** SECTORS */
     // All Sectors Account - fetch only one per game
     private async getAllSectorsAccount() {
@@ -300,13 +338,13 @@ export class SageGame {
       return this.sectors;
     }
 
-    async getSectorByCoordsOrKeyAsync(sector: SectorCoordinates | [BN,BN] | PublicKey) {
-      const pbk = !(sector instanceof PublicKey) ? Sector.findAddress(this.sageProgram, this.game.key, sector)[0] : sector;
+    async getSectorByCoordsAsync(sectorCoords: SectorCoordinates | [BN,BN]) {
+      const [sectorKey] = Sector.findAddress(this.sageProgram, this.game.key, sectorCoords);
       try {
         const sectorAccount = await readFromRPCOrError(
           this.provider.connection,
           this.sageProgram,
-          pbk,
+          sectorKey,
           Sector,
           "confirmed"
         );
@@ -316,11 +354,35 @@ export class SageGame {
       }
     }
 
-    getSectorByCoordsOrKey(sector: SectorCoordinates | [BN,BN] | PublicKey) {
-      const pbk = !(sector instanceof PublicKey) ? Sector.findAddress(this.sageProgram, this.game.key, sector)[0] : sector;
-      const sect = this.sectors.find((sector) => sector.key.equals(pbk))
-      if (sect) {
-        return { type: "Success" as const, data: sect }; ;
+    async getSectorByKeyAsync(sectorKey: PublicKey) {
+      try {
+        const sectorAccount = await readFromRPCOrError(
+          this.provider.connection,
+          this.sageProgram,
+          sectorKey,
+          Sector,
+          "confirmed"
+        );
+        return { type: "Success" as const, data: sectorAccount };
+      } catch (e) {
+        return { type: "SectorNotFound" as const };
+      }
+    }
+
+    getSectorByCoords(sectorCoords: SectorCoordinates | [BN,BN]) {
+      const [sectorKey] = Sector.findAddress(this.sageProgram, this.game.key, sectorCoords);
+      const sector = this.sectors.find((sector) => sector.key.equals(sectorKey))
+      if (sector) {
+        return { type: "Success" as const, data: sector }; ;
+      } else {
+        return { type: "SectorNotFound" as const };
+      }
+    }
+
+    getSectorByKey(sectorKey: PublicKey) {
+      const sector = this.sectors.find((sector) => sector.key.equals(sectorKey))
+      if (sector) {
+        return { type: "Success" as const, data: sector }; ;
       } else {
         return { type: "SectorNotFound" as const };
       }
@@ -384,22 +446,19 @@ export class SageGame {
       return this.planets;
     }
 
-    private getPlanetByCoords(coordinates: SectorCoordinates | [BN,BN]) {
-      return this.planets.find((planet) => planet.data.sector as SectorCoordinates === coordinates);
+    private getPlanetsByCoords(coordinates: SectorCoordinates | [BN,BN], planetType?: PlanetType) {
+      return this.planets.filter((planet) => !planetType ? 
+        this.bnArraysEqual(planet.data.sector as SectorCoordinates, coordinates) : 
+        this.bnArraysEqual(planet.data.sector as SectorCoordinates, coordinates) && planet.data.planetType === planetType);
     }
 
-    getPlanetBySector(sector: Sector) {
-      const sect = this.sectors.find((sect) => sect.key.equals(sector.key))
-      if (sect) {
-        const planet = this.getPlanetByCoords(sect.data.coordinates as SectorCoordinates);
+    getPlanetsBySector(sector: Sector, planetType?: PlanetType) {
+      const planets = this.getPlanetsByCoords(sector.data.coordinates as SectorCoordinates, planetType);
 
-        if (planet) {
-          return { type: "Success" as const, data: planet };
-        } else {
-          return { type: "PlanetNotFound" as const };
-        }
+      if (planets) {
+        return { type: "Success" as const, data: planets };
       } else {
-        return { type: "SectorNotFound" as const };
+        return { type: "PlanetsNotFound" as const };
       }
     }
     /** END PLANETS */
@@ -434,7 +493,7 @@ export class SageGame {
 
     async getStarbaseBySectorAsync(sector: Sector) {
       try {
-        const sectorAccount = await this.getSectorByCoordsOrKeyAsync(sector.key)
+        const sectorAccount = await this.getSectorByKeyAsync(sector.key)
         if (sectorAccount.type === "SectorNotFound") return sectorAccount.type;
 
         const pbk = Starbase.findAddress(this.sageProgram, this.game.key, sectorAccount.data.data.coordinates as [BN, BN])[0];
@@ -468,13 +527,13 @@ export class SageGame {
       }
     }
 
-    async getStarbaseByCoordsOrKeyAsync(starbase: SectorCoordinates | [BN,BN] | PublicKey) {
-      const pbk = !(starbase instanceof PublicKey) ? Starbase.findAddress(this.sageProgram, this.game.key, starbase)[0] : starbase;
+    private async getStarbaseByCoordsAsync(starbaseCoords: SectorCoordinates | [BN,BN]) {
+      const [starbaseKey] = Starbase.findAddress(this.sageProgram, this.game.key, starbaseCoords)
       try {
         const starbaseAccount = await readFromRPCOrError(
           this.provider.connection,
           this.sageProgram,
-          pbk,
+          starbaseKey,
           Starbase,
           "confirmed"
         );
@@ -484,11 +543,35 @@ export class SageGame {
       }
     }
 
-    getStarbaseByCoordsOrKey(starbase: SectorCoordinates | [BN,BN] | PublicKey) {
-      const pbk = !(starbase instanceof PublicKey) ? Starbase.findAddress(this.sageProgram, this.game.key, starbase)[0] : starbase;
-      const starb = this.starbases.find((starbase) => starbase.key.equals(pbk))
-      if (starb) {
-        return { type: "Success" as const, data: starb }; ;
+    private async getStarbaseByKeyAsync(starbaseKey: PublicKey) {
+      try {
+        const starbaseAccount = await readFromRPCOrError(
+          this.provider.connection,
+          this.sageProgram,
+          starbaseKey,
+          Starbase,
+          "confirmed"
+        );
+        return { type: "Success" as const, data: starbaseAccount };
+      } catch (e) {
+        return { type: "StarbaseNotFound" as const };
+      }
+    }
+
+    getStarbaseByCoords(starbaseCoords: SectorCoordinates | [BN,BN]) {
+      const [starbaseKey] = Starbase.findAddress(this.sageProgram, this.game.key, starbaseCoords);
+      const starbase = this.starbases.find((starbase) => starbase.key.equals(starbaseKey))
+      if (starbase) {
+        return { type: "Success" as const, data: starbase }; ;
+      } else {
+        return { type: "StarbaseNotFound" as const };
+      }
+    }
+
+    getStarbaseByKey(starbaseKey: PublicKey) {
+      const starbase = this.starbases.find((starbase) => starbase.key.equals(starbaseKey))
+      if (starbase) {
+        return { type: "Success" as const, data: starbase }; ;
       } else {
         return { type: "StarbaseNotFound" as const };
       }
@@ -661,6 +744,14 @@ export class SageGame {
     getResourceMintByName(resourceName: ResourceName) {
       return this.resourcesMint[resourceName];
     }
+
+    getMineItemAndResourceByName(resourceName: ResourceName) {
+      const mint = this.resourcesMint[resourceName];
+      const [mineItem] = this.mineItems.filter((mineItem) => mineItem.data.mint.equals(mint));
+      const [resource] = this.resources.filter((resource) => resource.data.mineItem.equals(mineItem.key));
+
+      return { mineItem, resource } as MinableResource;
+    }
     /** END RESOURCES MINT */
 
     // SurveyDataUnitTracker Account
@@ -748,7 +839,7 @@ export class SageGame {
     }   
     /** END FLEET */
 
-    // HELPERS
+    /** HELPERS */ 
     async getParsedTokenAccountsByOwner(owner: PublicKey) {
       try {
         const data = await getParsedTokenAccountsByOwner(this.provider.connection, owner);
@@ -790,9 +881,9 @@ export class SageGame {
       }
     }
 
-    async checkTokenAccountBalance(tokenAccountey: PublicKey,) {
+    async getTokenAccountBalance(tokenAccounKey: PublicKey,) {
       const tokenAccount = await this.connection.getTokenAccountBalance(
-        tokenAccountey,
+        tokenAccounKey,
         'confirmed',
       );
       if (tokenAccount.value.uiAmount == null) {
@@ -802,5 +893,116 @@ export class SageGame {
       }
     };
 
+    bnArraysEqual(a: BN[], b: BN[]) {
+      if (a.length !== b.length) return false;
+      for (let i = 0; i < a.length; i++) {
+        if (!a[i].eq(b[i])) return false;
+      }
+      return true;
+    }
+
+    getCargoTypeByMint(mint: PublicKey) {
+      const [cargoType] = CargoType.findAddress(
+        this.cargoProgram,
+        this.cargoStatsDefinition.key,
+        mint,
+        this.cargoStatsDefinition.data.seqId
+      );
+  
+      return cargoType;
+    }
+
+    private calculateDistanceByCoords(a: SectorCoordinates | [BN,BN], b: SectorCoordinates | [BN,BN]) {
+      return calculateDistance(a,b);
+    }
+
+    calculateDistanceBySector(a: Sector, b: Sector) {
+      return calculateDistance(a.data.coordinates as [BN, BN], b.data.coordinates as [BN, BN]);
+    }
+    /** END HELPERS */
+
+
+    /** TRANSACTIONS */
+    ixBurnQuattrinoToken() {
+      const fromATA = getAssociatedTokenAddressSync(
+        quattrinoTokenPubkey,
+        this.funder.publicKey()
+      );
+  
+      const ix = createBurnInstruction(
+        fromATA,
+        quattrinoTokenPubkey,
+        this.funder.publicKey(),
+        1
+      );
+  
+      const iws: InstructionReturn = async (funder) => ({
+        instruction: ix,
+        signers: [funder],
+      });
+  
+      return iws;
+    }
+  
+    async getQuattrinoBalance() {
+      const fromATA = getAssociatedTokenAddressSync(
+        quattrinoTokenPubkey,
+        this.funder.publicKey()
+      );
+      const tokenBalance = await this.getTokenAccountBalance(fromATA);
+
+      if (tokenBalance.type !== "Success" || tokenBalance.data === 0) 
+        return { type: "NoEnoughTokensToPerformLabsAction" as const };
+
+      return tokenBalance
+    }
+
+    async sendDynamicTransactions(
+      instructions: InstructionReturn[],
+      fee: boolean
+    ) {
+      if (fee) {
+        const tokenBalance = await this.getQuattrinoBalance();
+        if (tokenBalance.type !== "Success") return tokenBalance;
+  
+        instructions.push(this.ixBurnQuattrinoToken());
+      }
+
+      const signedTxs = await buildDynamicTransactions(instructions, this.funder, { connection: this.connection });
+
+      if (signedTxs.isErr()) {
+        return {
+          type: "BuildDynamicTransactionFailed",
+          data: signedTxs.error,
+        };
+      }
+
+      console.log("OK1", signedTxs.value)
+      const results = await Promise.all(
+        signedTxs.value.map((signedTx) => sendTransaction(signedTx, this.connection, {
+          commitment: "confirmed",
+          sendOptions: {
+            skipPreflight: false,
+          }
+        }, 5000, 50))
+      );
+      console.log("OK2")
+      const txSignatures = []
+      for (const result of results) {
+        if (result.value.isOk()) {
+          txSignatures.push(result.value.value);
+        }
+      }
+
+      if (txSignatures.length === signedTxs.value.length) {
+        return { type: "Success", data: txSignatures };
+      } else {
+        return {
+          type: "PartialSuccess",
+          data: txSignatures,
+        };
+      }
+    }
+    /** END TRANSACTIONS */
     // END CLASS
 }

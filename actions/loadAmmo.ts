@@ -1,17 +1,15 @@
-import { PublicKey } from "@solana/web3.js";
-import { SageFleetHandler } from "../src/SageFleetHandler";
-import { SageGameHandler } from "../src/SageGameHandler";
+import { SageFleet } from "../src/SageFleet";
+import { BN } from "@staratlas/anchor";
 
 export const loadAmmo = async (
-  fleetPubkey: PublicKey,
-  ammoAmount: number,
-  gh: SageGameHandler,
-  fh: SageFleetHandler
+  fleet: SageFleet,
+  amount: BN
 ) => {
   console.log(" ");
   console.log("Loading ammo to fleet...");
 
-  let ix = await fh.ixRearmFleet(fleetPubkey, ammoAmount);
+  let ix = await fleet.ixLoadAmmoBank(amount);
+  
   switch (ix.type) {
     case "FleetAmmoBankIsFull":
       console.log("Your fleet ammo bank is already full");
@@ -22,8 +20,8 @@ export const loadAmmo = async (
       }
   }
 
-  await gh.sendDynamicTransactions(ix.ixs, true);
+  await fleet.getSageGame().sendDynamicTransactions(ix.ixs, false);
 
   console.log("Fleet ammo loaded!");
-  await gh.getQuattrinoBalance();
+  await fleet.getSageGame().getQuattrinoBalance();
 };
