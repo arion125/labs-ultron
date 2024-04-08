@@ -1,5 +1,5 @@
 import { Provider, AnchorProvider, Program, Wallet, BN } from "@staratlas/anchor";
-import { Connection, Keypair, PublicKey } from "@solana/web3.js";
+import { Connection, Finality, Keypair, PublicKey, Version, VersionedTransaction } from "@solana/web3.js";
 import { readFromRPCOrError, readAllFromRPC, stringToByteArray, InstructionReturn } from "@staratlas/data-source";
 import { PLAYER_PROFILE_IDL, PlayerProfileIDLProgram } from "@staratlas/player-profile";
 import { Fleet, Game, GameState, MineItem, Planet, PlanetType, Resource, SAGE_IDL, SageIDLProgram, Sector, Star, Starbase, calculateDistance, getCargoPodsByAuthority } from "@staratlas/sage";
@@ -8,9 +8,10 @@ import { CargoIDLProgram, CARGO_IDL, CargoStatsDefinition, CargoType } from "@st
 import { CraftingIDLProgram, CRAFTING_IDL } from "@staratlas/crafting";
 import { PlayerProfile } from "@staratlas/player-profile";
 import { SectorCoordinates } from "../common/types";
-import { AsyncSigner, byteArrayToString, getParsedTokenAccountsByOwner, createAssociatedTokenAccountIdempotent, keypairToAsyncSigner, buildDynamicTransactions, sendTransaction } from "@staratlas/data-source";
+import { AsyncSigner, byteArrayToString, getParsedTokenAccountsByOwner, createAssociatedTokenAccountIdempotent, keypairToAsyncSigner, buildDynamicTransactions, sendTransaction, buildOptimalDynamicTransactions, getWritableAccounts, TransactionReturn, buildDynamicTransactionsNoSigning, buildAndSignTransactionsFromIxWithSigners, GetPriorityFee, GetComputeLimit, getSimulationUnits } from "@staratlas/data-source";
 import { createBurnInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { quattrinoTokenPubkey } from "../common/constants";
+import bs58 from "bs58";
 
 export enum ResourceName {
   Food = "Food",
@@ -50,6 +51,26 @@ export enum ResourceName {
 export type MinableResource = {
   resource: Resource;
   mineItem: MineItem;
+}
+
+enum PriorityLevel {
+  None = "None",
+  Basic = "Basic",
+  Default = "Default",
+  Low = "Low",
+  High = "High",
+}
+
+type PriorityFee = {
+  jsonrpc: string;
+  result: {
+    priorityFeeEstimate: number;
+  };
+  id: string;
+}
+
+type PriorityFeeEstimate = {
+  priorityFeeEstimate: number;
 }
 
 export class SageGame {
@@ -957,52 +978,65 @@ export class SageGame {
       return tokenBalance
     }
 
-    async sendDynamicTransactions(
-      instructions: InstructionReturn[],
-      fee: boolean
-    ) {
+    async buildDynamicTransactions(instructions: InstructionReturn[], fee: boolean) {
       if (fee) {
         const tokenBalance = await this.getQuattrinoBalance();
         if (tokenBalance.type !== "Success") return tokenBalance;
-  
         instructions.push(this.ixBurnQuattrinoToken());
       }
 
-      const signedTxs = await buildDynamicTransactions(instructions, this.funder, { connection: this.connection });
+      const getFee = async (writableAccounts: PublicKey[], connection: Connection): Promise<number> => {
+        const rpf = await connection.getRecentPrioritizationFees({ lockedWritableAccounts: writableAccounts})
+        const priorityFee = Math.round(rpf.map(item => item.prioritizationFee).reduce((acc, fee) => acc + fee, 0) / rpf.length);
+        console.log("Priority Fee:", priorityFee / 1000000, "Lamports per CU");
+        return priorityFee;
+      };
+      
+      const getLimit = async (transaction: VersionedTransaction, connection: Connection): Promise<number> => {
+        const unitLimit = await getSimulationUnits(transaction, connection) || 100000;
+        console.log("Unit Limit:", unitLimit, "CU");
+        return unitLimit;
+      };
 
-      if (signedTxs.isErr()) {
-        return {
-          type: "BuildDynamicTransactionFailed",
-          data: signedTxs.error,
-        };
-      }
+      const txs = await buildOptimalDynamicTransactions(
+        this.connection, 
+        instructions, 
+        this.funder, 
+        {
+          getFee,
+          getLimit,
+        }
+      )
+      if (txs.isErr()) return { type: "buildOptimalDynamicTransactionsFailed" as const };
 
-      console.log("OK1", signedTxs.value)
+      return { type: "Success" as const, data: txs.value };
+    }
+
+    async sendDynamicTransactions(
+      transactions: TransactionReturn[],
+    ) {
+      const commitment: Finality = "confirmed";
       const results = await Promise.all(
-        signedTxs.value.map((signedTx) => sendTransaction(signedTx, this.connection, {
-          commitment: "confirmed",
+        transactions.map((tx) => sendTransaction(tx, this.connection, {
+          commitment,
           sendOptions: {
             skipPreflight: false,
-          }
-        }, 5000, 50))
+            preflightCommitment: "confirmed",
+          },
+        }))
       );
-      console.log("OK2")
+
       const txSignatures = []
+
       for (const result of results) {
-        if (result.value.isOk()) {
-          txSignatures.push(result.value.value);
-        }
+        if (result.value.isOk()) txSignatures.push(result.value.value);
       }
 
-      if (txSignatures.length === signedTxs.value.length) {
-        return { type: "Success", data: txSignatures };
-      } else {
-        return {
-          type: "PartialSuccess",
-          data: txSignatures,
-        };
+      if (txSignatures.length === transactions.length) 
+        return { type: "Success" as const, data: txSignatures };
+        
+      return { type: "PartialSuccess" as const, data: txSignatures };
       }
-    }
     /** END TRANSACTIONS */
     // END CLASS
 }

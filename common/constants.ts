@@ -50,5 +50,6 @@ export const verifiedRpc = [
   "rpc.hellomoon.io",
   "solana-mainnet.g.alchemy.com",
   "mainnet.helius-rpc.com",
-  "rpc.ironforge.network"
+  "rpc.ironforge.network",
+  "solana-mainnet.api.syndica.io",
 ];

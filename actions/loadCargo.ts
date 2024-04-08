@@ -22,7 +22,13 @@ export const loadCargo = async (
       }
   }
 
-  await fleet.getSageGame().sendDynamicTransactions(ix.ixs, false);
+  const txs = await fleet.getSageGame().buildDynamicTransactions(ix.ixs, false);
+  if (txs.type !== "Success") {
+    console.log("Failed to build dynamic transactions");
+    return;
+  }
+
+  await fleet.getSageGame().sendDynamicTransactions(txs.data);
 
   console.log("Fleet cargo loaded!");
   await fleet.getSageGame().getQuattrinoBalance();

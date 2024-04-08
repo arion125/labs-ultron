@@ -10,7 +10,7 @@ export const loadFuel = async (
   console.log("Loading fuel to fleet...");
 
   let ix = await fleet.ixLoadFuelTank(amount);
-  
+
   switch (ix.type) {
     case "FleetFuelTankIsFull":
       console.log("Your fleet fuel tank is already full");
@@ -21,7 +21,13 @@ export const loadFuel = async (
       }
   }
 
-  await fleet.getSageGame().sendDynamicTransactions(ix.ixs, false);
+  const txs = await fleet.getSageGame().buildDynamicTransactions(ix.ixs, false);
+  if (txs.type !== "Success") {
+    console.log("Failed to build dynamic transactions");
+    return;
+  }
+
+  await fleet.getSageGame().sendDynamicTransactions(txs.data);
 
   console.log("Fleet fuel loaded!");
   await fleet.getSageGame().getQuattrinoBalance();
