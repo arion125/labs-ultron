@@ -182,9 +182,8 @@ export class SageGame {
     static async init(signer: Keypair, connection: Connection): Promise<SageGame> {
       const game = new SageGame(signer, connection);
       
-      const [gameAccount, gameStateAccount, cargoStatsDefinition, sectors, stars, planets, mineItems, resources, starbases] = await Promise.all([
-        game.getGameAccount(),
-        game.getGameStateAccount(),
+      const [gameAndGameStateAccounts, cargoStatsDefinition, sectors, stars, planets, mineItems, resources, starbases] = await Promise.all([
+        game.getGameAndGameStateAccounts(),
         game.getCargoStatsDefinitionAccount(),
         game.getAllSectorsAccount(),
         game.getAllStarsAccount(),
@@ -194,8 +193,7 @@ export class SageGame {
         game.getAllStarbasesAccount()
       ]);
 
-      if (gameAccount.type === "GameNotFound") throw new Error(gameAccount.type);
-      if (gameStateAccount.type === "GameStateNotFound") throw new Error(gameStateAccount.type);
+      if (gameAndGameStateAccounts.type === "GameAndGameStateNotFound") throw new Error(gameAndGameStateAccounts.type);
       if (cargoStatsDefinition.type === "CargoStatsDefinitionNotFound") throw new Error(cargoStatsDefinition.type);
       if (sectors.type === "SectorsNotFound") throw new Error(sectors.type);
       if (stars.type === "StarsNotFound") throw new Error(stars.type);
@@ -204,8 +202,8 @@ export class SageGame {
       if (resources.type === "ResourcesNotFound") throw new Error(resources.type);
       if (starbases.type === "StarbasesNotFound") throw new Error(starbases.type);
 
-      game.game = gameAccount.data;
-      game.gameState = gameStateAccount.data;
+      game.game = gameAndGameStateAccounts.data.game;
+      game.gameState = gameAndGameStateAccounts.data.gameState;
       game.cargoStatsDefinition = cargoStatsDefinition.data;
       game.sectors = sectors.data;
       game.stars = stars.data;
@@ -257,9 +255,9 @@ export class SageGame {
       return this.resourcesMint;
     }
 
-    /** GAME */
-    // Game Account - fetch only one per game
-    private async getGameAccount() {
+    /** GAME AND GAME STATE */
+    // Game And Game State Accounts - fetch only one per game
+    private async getGameAndGameStateAccounts() {
         try {
           const [fetchGame] = await readAllFromRPC(
             this.provider.connection,
@@ -267,44 +265,60 @@ export class SageGame {
             Game,
             "confirmed",
           );
-
+          
           if (fetchGame.type !== "ok") throw new Error()
+          
+          const fetchGameStates = await this.getGameStatesAccount();
+          if (fetchGameStates.type !== "Success") throw new Error()
 
-          return { type: "Success" as const, data: fetchGame.data };
+          const [gameStateAccount] = fetchGameStates.data.filter((gameState) => fetchGame.data.data.gameState.equals(gameState.key));
+          if (!gameStateAccount) throw new Error()
+
+          return { 
+            type: "Success" as const, 
+            data: {
+              game: fetchGame.data,
+              gameState: gameStateAccount
+            } 
+          };
         } catch (e) {
-          return { type: "GameNotFound" as const };
+          return { type: "GameAndGameStateNotFound" as const };
         }
     }
 
     getGame() {
       return this.game;
     }
-    /** END GAME */
-
-
-    /** GAME STATE */
-    // Game State Account - fetch only one per game
-    private async getGameStateAccount() {
-        try {
-          const [fetchGameState] = await readAllFromRPC(
-            this.provider.connection,
-            this.sageProgram,
-            GameState,
-            "confirmed"
-          );
-
-          if (fetchGameState.type !== "ok") throw new Error()
-
-          return { type: "Success" as const, data: fetchGameState.data };
-        } catch (e) {
-          return { type: "GameStateNotFound" as const };
-        }
-    }
 
     getGameState() {
       return this.gameState;
     }
-    /** END GAME STATE */
+    /** END GAME */
+
+
+    /** GAME STATE */
+    // !! Can be more than one game state account per game
+    private async getGameStatesAccount() {
+        try {
+          const fetchGameState = await readAllFromRPC(
+            this.provider.connection,
+            this.sageProgram,
+            GameState,
+            "confirmed",
+          );
+
+          const gameStates = []
+          for (const gameState of fetchGameState) {
+            if (gameState.type !== "ok") throw new Error()
+            gameStates.push(gameState.data)
+          }
+
+          return { type: "Success" as const, data: gameStates };
+        } catch (e) {
+          return { type: "GameStatesNotFound" as const };
+        }
+    }
+    /** END GAME STATES */
 
 
     /** CARGO STATS DEFINITION */
@@ -768,6 +782,10 @@ export class SageGame {
 
     getMineItemAndResourceByName(resourceName: ResourceName) {
       const mint = this.resourcesMint[resourceName];
+      return this.getMineItemAndResourceByMint(mint)
+    }
+
+    private getMineItemAndResourceByMint(mint: PublicKey) {
       const [mineItem] = this.mineItems.filter((mineItem) => mineItem.data.mint.equals(mint));
       const [resource] = this.resources.filter((resource) => resource.data.mineItem.equals(mineItem.key));
 
@@ -923,6 +941,18 @@ export class SageGame {
     }
 
     getCargoTypeByMint(mint: PublicKey) {
+      const [cargoType] = CargoType.findAddress(
+        this.cargoProgram,
+        this.cargoStatsDefinition.key,
+        mint,
+        this.cargoStatsDefinition.data.seqId
+      );
+  
+      return cargoType;
+    }
+
+    getCargoTypeByResourceName(resourceName: ResourceName) {
+      const mint = this.resourcesMint[resourceName];
       const [cargoType] = CargoType.findAddress(
         this.cargoProgram,
         this.cargoStatsDefinition.key,

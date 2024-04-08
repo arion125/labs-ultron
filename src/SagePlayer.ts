@@ -103,6 +103,21 @@ export class SagePlayer {
         return { type: "FleetNotFound" as const };
       }
     }
+
+    async getStarbasePlayerByStarbaseAsync(starbase: Starbase) {
+      try {
+        const starbasePlayer = await readFromRPCOrError(
+          this.sageGame.getProvider().connection,
+          this.sageGame.getSageProgram(),
+          this.getStarbasePlayerAddress(starbase),
+          StarbasePlayer,
+          "confirmed"
+        );
+        return { type: "Success" as const, data: starbasePlayer };
+      } catch (e) {
+        return { type: "StarbasePlayerNotFound" as const };
+      }
+    }
     
     async getStarbasePlayerPodAsync(starbase: Starbase) {
       const starbasePlayerPod = await this.getSageGame().getCargoPodsByAuthority(this.getStarbasePlayerAddress(starbase));

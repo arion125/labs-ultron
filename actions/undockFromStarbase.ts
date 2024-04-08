@@ -1,22 +1,25 @@
-import { PublicKey } from "@solana/web3.js";
-import { SageFleetHandler } from "../src/SageFleetHandler";
-import { SageGameHandler } from "../src/SageGameHandler";
+import { SageFleet } from "../src/SageFleet";
 
 export const undockFromStarbase = async (
-  fleetPubkey: PublicKey,
-  gh: SageGameHandler,
-  fh: SageFleetHandler
+  fleet: SageFleet
 ) => {
   console.log(" ");
   console.log("Undocking from starbase...");
 
-  let ix = await fh.ixUndockFromStarbase(fleetPubkey);
+  let ix = await fleet.ixUndockFromStarbase();
+
   if (ix.type !== "Success") {
     throw new Error(ix.type);
   }
 
-  await gh.sendDynamicTransactions(ix.ixs, true);
+  const txs = await fleet.getSageGame().buildDynamicTransactions(ix.ixs, false);
+  if (txs.type !== "Success") {
+    console.log("Failed to build dynamic transactions");
+    return;
+  }
+
+  await fleet.getSageGame().sendDynamicTransactions(txs.data);
 
   console.log("Fleet undocked!");
-  await gh.getQuattrinoBalance();
+  await fleet.getSageGame().getQuattrinoBalance();
 };

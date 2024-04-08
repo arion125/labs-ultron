@@ -50,6 +50,7 @@ export const verifiedRpc = [
   "rpc.hellomoon.io",
   "solana-mainnet.g.alchemy.com",
   "mainnet.helius-rpc.com",
-  "rpc.ironforge.network",
+  "rpc.ironforge.network", // !! IronForge restituisce sempre un errore GENERICO StructError in caso di errore di un'istruzione
   "solana-mainnet.api.syndica.io",
+  // aggiungere QuickNode
 ];

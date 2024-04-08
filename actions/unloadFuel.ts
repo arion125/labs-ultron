@@ -1,17 +1,15 @@
-import { PublicKey } from "@solana/web3.js";
-import { SageFleetHandler } from "../src/SageFleetHandler";
-import { SageGameHandler } from "../src/SageGameHandler";
+import { BN } from "@staratlas/anchor";
+import { SageFleet } from "../src/SageFleet";
 
 export const unloadFuel = async (
-  fleetPubkey: PublicKey,
-  fuelAmount: number,
-  gh: SageGameHandler,
-  fh: SageFleetHandler
+  fleet: SageFleet,
+  amount: BN
 ) => {
   console.log(" ");
   console.log("Unloading fuel to fleet...");
 
-  let ix = await fh.ixUnloadFuelTanks(fleetPubkey, fuelAmount);
+  let ix = await fleet.ixUnloadFuelTank(amount);
+
   if (ix.type !== "Success") {
     throw new Error(ix.type);
   }

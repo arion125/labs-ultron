@@ -1,16 +1,17 @@
-import { SageFleet } from "../src/SageFleet";
+import { CargoPodType, SageFleet } from "../src/SageFleet";
 import { ResourceName } from "../src/SageGame";
 import { BN } from "@staratlas/anchor";
 
 export const loadCargo = async (
   fleet: SageFleet,
   resourceName: ResourceName,
+  cargoPodType: CargoPodType,
   amount: BN
 ) => {
   console.log(" ");
-  console.log(`Loading ${amount} ${resourceName} to fleet cargo...`);
+  console.log(`Loading ${amount} ${resourceName} to fleet...`);
 
-  let ix = await fleet.ixLoadCargo(resourceName, amount);
+  let ix = await fleet.ixLoadCargo(resourceName, cargoPodType, amount);
 
   switch (ix.type) {
     case "FleetCargoIsFull":
