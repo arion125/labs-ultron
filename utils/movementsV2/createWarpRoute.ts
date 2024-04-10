@@ -19,18 +19,16 @@ export const createWarpRoute = (fleet: SageFleet, sector1: Sector, sector2: Sect
 
     const start: Node = {x: sector1.data.coordinates[0].toNumber(), y: sector1.data.coordinates[1].toNumber(), cost: 0, distance: 0, f: 0};
     const goal: Node = {x: sector2.data.coordinates[0].toNumber(), y: sector2.data.coordinates[1].toNumber(), cost: 0, distance: 0, f: 0};
-    const criticalPoints = aStarPathfindingWithRestStops(start, goal, fleet.fleetMovementStats.maxWarpDistance);
+    const criticalPoints = aStarPathfindingWithRestStops(start, goal, fleet.getMovementStats().maxWarpDistance);
 
     const sectorRoute: Sector[] = [];
-    criticalPoints.forEach((node, index) => {
-        if (index !== 0) {
-            const sector = fleet.getSageGame().getSectorByCoords([new BN(node.x), new BN(node.y)]);
-            if (sector.type !== "Success") return;
-            sectorRoute.push(sector.data);
-        }
+    criticalPoints.forEach(node => {
+        const sector = fleet.getSageGame().getSectorByCoords([new BN(node.x), new BN(node.y)]);
+        if (sector.type !== "Success") return;
+        sectorRoute.push(sector.data);
     })
 
-    if (criticalPoints.length - 1 !== sectorRoute.length) return { type: "BrokenRoute" as const };
+    if (criticalPoints.length !== sectorRoute.length) return { type: "BrokenRoute" as const };
 
     return { type: "Success" as const, data: sectorRoute };
 };

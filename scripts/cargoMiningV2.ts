@@ -162,7 +162,7 @@ export const cargoMiningV2 = async (
 
     // 6. move to sector (->)
     if (movementGo.movement === MovementType.Warp) {
-      for (let i = 0; i < goRoute.data.length; i++) {
+      for (let i = 1; i < goRoute.data.length; i++) {
         const sectorTo = goRoute.data[i];
         await actionWrapper(warpToSector, fleet.data, sectorTo, false);
       }   
@@ -192,7 +192,7 @@ export const cargoMiningV2 = async (
 
     // 12. move to sector (<-)
     if (movementBack.movement === MovementType.Warp) {
-      for (let i = 0; i < backRoute.data.length; i++) {
+      for (let i = 1; i < backRoute.data.length; i++) {
         const sectorTo = backRoute.data[i];
         await actionWrapper(warpToSector, fleet.data, sectorTo, true);
       }   
@@ -210,7 +210,7 @@ export const cargoMiningV2 = async (
     await actionWrapper(unloadCargo, fleet.data, resourcToMineName.data, CargoPodType.CargoHold, new BN(MAX_AMOUNT));
 
     // 15. send notification
-    await sendNotification(NotificationMessage.MINING_CARGO_SUCCESS, fleet.data.name);
+    await sendNotification(NotificationMessage.MINING_CARGO_SUCCESS, fleet.data.getName());
   }
 
   return { type: "Success" as const };

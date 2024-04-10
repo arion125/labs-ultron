@@ -147,7 +147,7 @@ export const miningV2 = async (
 
     // 5. move to sector (->)
     if (movementGo.movement === MovementType.Warp) {
-      for (let i = 0; i < goRoute.data.length; i++) {
+      for (let i = 1; i < goRoute.data.length; i++) {
         const sectorTo = goRoute.data[i];
         await actionWrapper(warpToSector, fleet.data, sectorTo, false);
       }   
@@ -166,7 +166,7 @@ export const miningV2 = async (
 
     // 8. move to sector (<-)
     if (movementBack.movement === MovementType.Warp) {
-      for (let i = 0; i < backRoute.data.length; i++) {
+      for (let i = 1; i < backRoute.data.length; i++) {
         const sectorTo = backRoute.data[i];
         await actionWrapper(warpToSector, fleet.data, sectorTo, true);
       }   
@@ -187,7 +187,7 @@ export const miningV2 = async (
     // await actionWrapper(unloadCargo, fleet.data, ResourceName.Food, CargoPodType.CargoHold, new BN(MAX_AMOUNT));
 
     // 12. send notification
-    await sendNotification(NotificationMessage.MINING_SUCCESS, fleet.data.name);
+    await sendNotification(NotificationMessage.MINING_SUCCESS, fleet.data.getName());
   }
 
   return { type: "Success" as const };

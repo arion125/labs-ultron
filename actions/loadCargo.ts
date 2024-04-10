@@ -16,11 +16,11 @@ export const loadCargo = async (
   switch (ix.type) {
     case "FleetCargoPodIsFull":
       console.log("Your fleet cargo is full");
-      return { type: "FleetCargoPodIsFull" as const };
+      return ix;
 
     case "StarbaseCargoIsEmpty":
       console.log("Starbase cargo is empty");
-      return { type: "StarbaseCargoIsEmpty" as const };
+      return ix;
     default:
       if (ix.type !== "Success") {
         throw new Error(ix.type);

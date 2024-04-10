@@ -2,7 +2,7 @@ import { Provider, AnchorProvider, Program, Wallet, BN } from "@staratlas/anchor
 import { Connection, Finality, Keypair, PublicKey, VersionedTransaction, } from "@solana/web3.js";
 import { readFromRPCOrError, readAllFromRPC, stringToByteArray, InstructionReturn } from "@staratlas/data-source";
 import { PLAYER_PROFILE_IDL, PlayerProfileIDLProgram, } from "@staratlas/player-profile";
-import { Fleet, Game, GameState, MineItem, Planet, PlanetType, Points, Resource, SAGE_IDL, SageIDLProgram, Sector, Star, Starbase, calculateDistance, getCargoPodsByAuthority } from "@staratlas/sage";
+import { Fleet, Game, GameState, MineItem, Planet, PlanetType, Points, Resource, SAGE_IDL, SageIDLProgram, Sector, Star, Starbase, SurveyDataUnitTracker, calculateDistance, getCargoPodsByAuthority } from "@staratlas/sage";
 import { ProfileFactionIDLProgram, PROFILE_FACTION_IDL } from "@staratlas/profile-faction";
 import { CargoIDLProgram, CARGO_IDL, CargoStatsDefinition, CargoType } from "@staratlas/cargo";
 import { CraftingIDLProgram, CRAFTING_IDL } from "@staratlas/crafting";
@@ -122,6 +122,7 @@ export class SageGame {
 
     private cargoStatsDefinition!: CargoStatsDefinition;
     private pointsCategories!: PointsCategory[];
+    private surveyDataUnitTracker!: SurveyDataUnitTracker;
     
     private playerKeypair!: Keypair;
     private funder: AsyncSigner;
@@ -173,7 +174,7 @@ export class SageGame {
     static async init(signer: Keypair, connection: Connection, customPriorityFee: CustomPriorityFee): Promise<SageGame> {
       const game = new SageGame(signer, connection, customPriorityFee);
       
-      const [gameAndGameState, pointsCategories, cargoStatsDefinition, sectors, stars, planets, mineItems, resources, starbases] = await Promise.all([
+      const [gameAndGameState, pointsCategories, cargoStatsDefinition, sectors, stars, planets, mineItems, resources, starbases, surveyDataUnitTracker] = await Promise.all([
         game.getGameAndGameStateAccounts(),
         game.getPointsCategoriesAccount(),
         game.getCargoStatsDefinitionAccount(),
@@ -182,7 +183,8 @@ export class SageGame {
         game.getAllPlanetsAccount(),
         game.getAllMineItems(),
         game.getAllResources(),
-        game.getAllStarbasesAccount()
+        game.getAllStarbasesAccount(),
+        game.getSurveyDataUnitTrackerAccount()
       ]);
 
       if (gameAndGameState.type === "GameAndGameStateNotFound") throw new Error(gameAndGameState.type);
@@ -194,6 +196,7 @@ export class SageGame {
       if (mineItems.type === "MineItemsNotFound") throw new Error(mineItems.type);
       if (resources.type === "ResourcesNotFound") throw new Error(resources.type);
       if (starbases.type === "StarbasesNotFound") throw new Error(starbases.type);
+      if (surveyDataUnitTracker.type === "SurveyDataUnitTrackerNotFound") throw new Error(surveyDataUnitTracker.type);
 
       game.game = gameAndGameState.data.game;
       game.gameState = gameAndGameState.data.gameState;
@@ -206,6 +209,7 @@ export class SageGame {
       game.mineItems = mineItems.data;
       game.resources = resources.data;
       game.starbases = starbases.data;
+      game.surveyDataUnitTracker = surveyDataUnitTracker.data;
 
       return game;
     }
@@ -844,8 +848,28 @@ export class SageGame {
     /** END RESOURCES MINT */
 
 
-    // SurveyDataUnitTracker Account
-    // ...
+    /** SURVEY DATA UNIT TRACKER */
+    private async getSurveyDataUnitTrackerAccount() {
+      try {
+        const [fetchSurveyDataUnitTracker] = await readAllFromRPC(
+          this.provider.connection,
+          this.sageProgram,
+          SurveyDataUnitTracker,
+          "confirmed",
+        );
+
+        if (fetchSurveyDataUnitTracker.type !== "ok") throw new Error()
+
+        return { type: "Success" as const, data: fetchSurveyDataUnitTracker.data };
+      } catch (e) {
+        return { type: "SurveyDataUnitTrackerNotFound" as const };
+      }
+    }
+
+    getSuvreyDataUnitTracker() {
+      return this.surveyDataUnitTracker;
+    }
+    /** END SURVEY DATA UNIT TRACKER */
 
 
     /** PLAYER PROFILE */

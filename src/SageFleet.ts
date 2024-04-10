@@ -1,14 +1,15 @@
 import { BN } from "@staratlas/anchor";
 import { Keypair, PublicKey } from "@solana/web3.js";
 import { SectorCoordinates } from "../common/types";
-import { CargoStats, DepositCargoToFleetInput, Fleet, IdleToLoadingBayInput, LoadingBayToIdleInput, MovementStats, PlanetType, Sector, ShipStats, StarbaseCreateCargoPodInput, StarbasePlayer, StartMiningAsteroidInput, StartSubwarpInput, StopMiningAsteroidInput, WarpToCoordinateInput, WithdrawCargoFromFleetInput } from "@staratlas/sage";
+import { CargoStats, DepositCargoToFleetInput, Fleet, IdleToLoadingBayInput, LoadingBayToIdleInput, MovementStats, PlanetType, ScanForSurveyDataUnitsInput, Sector, Ship, ShipStats, StarbaseCreateCargoPodInput, StarbasePlayer, StartMiningAsteroidInput, StartSubwarpInput, StopMiningAsteroidInput, SurveyDataUnitTracker, WarpToCoordinateInput, WithdrawCargoFromFleetInput } from "@staratlas/sage";
 import { CargoPod } from "@staratlas/cargo";
-import { InstructionReturn, byteArrayToString } from "@staratlas/data-source";
+import { InstructionReturn, byteArrayToString, readAllFromRPC } from "@staratlas/data-source";
 import { SagePlayer } from "./SagePlayer";
 import { readFromRPCOrError } from "@staratlas/data-source";
 import { MinableResource, ResourceName } from "./SageGame";
 import { Account, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { MAX_AMOUNT } from "../common/constants";
+import { UserPoints } from "@staratlas/points";
 
 /* type CargoPodLoadedResource = {
   cargoType: PublicKey;
@@ -16,6 +17,7 @@ import { MAX_AMOUNT } from "../common/constants";
   amount: BN;
 } */
 
+// TODO: add cargo type?
 export type LoadedResources = {
     mint: PublicKey;
     tokenAccount: Account;
@@ -40,24 +42,52 @@ export class SageFleet {
     private fleet!: Fleet;
     private player!: SagePlayer;
 
-    name: string;
-    key: PublicKey;
-    fleetStats: ShipStats;
-    fleetMovementStats: MovementStats;
-    fleetCargoStats: CargoStats;
+    private name: string;
+    private key: PublicKey;
+    private stats: ShipStats;
+    private movementStats: MovementStats;
+    private cargoStats: CargoStats;
+    // cargoHold: CargoPodEnhanced;
+    // fuelTank: CargoPodEnhanced;
+    // ammoBank: CargoPodEnhanced;
+    private ships!: Ship[];
+    private onlyDataRunner: boolean = true;
 
     private constructor(fleet: Fleet, player: SagePlayer) {
         this.fleet = fleet;
         this.player = player;
         this.name = byteArrayToString(fleet.data.fleetLabel);
         this.key = fleet.key;
-        this.fleetStats = fleet.data.stats as ShipStats;
-        this.fleetMovementStats = fleet.data.stats.movementStats as MovementStats;
-        this.fleetCargoStats = fleet.data.stats.cargoStats as CargoStats;
+        this.stats = fleet.data.stats as ShipStats;
+        this.movementStats = fleet.data.stats.movementStats as MovementStats;
+        this.cargoStats = fleet.data.stats.cargoStats as CargoStats;
     }
 
     static async init(fleet: Fleet, player: SagePlayer): Promise<SageFleet> {
-        return new SageFleet(fleet, player);
+      const flt = new SageFleet(fleet, player);
+      
+      const [ships] = await Promise.all([
+        flt.getShipsAccount()
+      ])
+
+      if (ships.type === "ShipsNotFound") throw new Error(ships.type);
+
+      flt.ships = ships.data;
+
+      ships.data.forEach((ship) => { 
+        const stats = ship.data.stats.miscStats as ShipStats 
+        if (stats.miscStats.scanCost > 0) flt.onlyDataRunner = false;
+      })
+
+      return flt;
+    }
+
+    getName() {
+      return this.name;
+    }
+
+    getKey() {
+      return this.key;
     }
 
     getSageGame() {
@@ -66,6 +96,47 @@ export class SageFleet {
 
     getPlayer() {
         return this.player;
+    }
+
+    getStats() {
+        return this.stats;
+    }
+
+    getMovementStats() {
+        return this.movementStats;
+    }
+
+    getCargoStats() {
+        return this.cargoStats;
+    }
+
+    getShips() {
+        return this.ships;
+    }
+
+    getOnlyDataRunner() {
+        return this.onlyDataRunner;
+    }
+
+    private async getShipsAccount() {
+      try {
+        const fetchShips = await readAllFromRPC(
+          this.getSageGame().getProvider().connection,
+          this.getSageGame().getSageProgram(),
+          Ship,
+          "confirmed"
+        );
+
+        const ships = fetchShips.flatMap((ship) =>
+        ship.type === "ok" ? [ship.data] : []
+        );
+
+        if (ships.length === 0) throw new Error();
+
+        return { type: "Success" as const, data: ships };
+      } catch (e) {
+        return { type: "ShipsNotFound" as const };
+      }
     }
 
     async getCurrentSectorAsync() { 
@@ -126,9 +197,9 @@ export class SageFleet {
         null;
 
       const cargoPodMaxCapacity = 
-        type === CargoPodType.CargoHold ? this.fleetCargoStats.cargoCapacity :
-        type === CargoPodType.FuelTank ? this.fleetCargoStats.fuelCapacity :
-        type === CargoPodType.AmmoBank ? this.fleetCargoStats.ammoCapacity :
+        type === CargoPodType.CargoHold ? this.cargoStats.cargoCapacity :
+        type === CargoPodType.FuelTank ? this.cargoStats.fuelCapacity :
+        type === CargoPodType.AmmoBank ? this.cargoStats.ammoCapacity :
         0;
 
       if (!cargoPodType) return { type: "CargoPodTypeNotFound" as const };
@@ -203,7 +274,7 @@ export class SageFleet {
     /** HELPERS */
     private getTimeToWarpByCoords(coordinatesFrom: [BN, BN], coordinatesTo: [BN, BN]) {
       const timeToWarp = Fleet.calculateWarpTimeWithCoords(
-        this.fleetStats,
+        this.stats,
         coordinatesFrom,
         coordinatesTo
       );
@@ -213,7 +284,7 @@ export class SageFleet {
 
     getTimeToWarpBySector(sectorFrom: Sector, sectorTo: Sector) {
       const timeToWarp = Fleet.calculateWarpTimeWithCoords(
-        this.fleetStats,
+        this.stats,
         sectorFrom.data.coordinates as [BN, BN],
         sectorTo.data.coordinates as [BN, BN]
       );
@@ -223,7 +294,7 @@ export class SageFleet {
 
     private getTimeToSubwarpByCoords(coordinatesFrom: [BN, BN], coordinatesTo: [BN, BN]) {
       const timeToSubwarp = Fleet.calculateSubwarpTimeWithCoords(
-        this.fleetStats,
+        this.stats,
         coordinatesFrom,
         coordinatesTo
       );
@@ -233,7 +304,7 @@ export class SageFleet {
 
     getTimeToSubwarpBySector(sectorFrom: Sector, sectorTo: Sector) {
       const timeToSubwarp = Fleet.calculateSubwarpTimeWithCoords(
-        this.fleetStats,
+        this.stats,
         sectorFrom.data.coordinates as [BN, BN],
         sectorTo.data.coordinates as [BN, BN]
       );
@@ -243,15 +314,15 @@ export class SageFleet {
 
     getTimeAndNeededResourcesToFullCargoInMining(minableResource: MinableResource) {
       const timeInSeconds = Fleet.calculateAsteroidMiningResourceExtractionDuration(
-        this.fleetStats,
+        this.stats,
         minableResource.mineItem.data,
         minableResource.resource.data,
-        this.fleetCargoStats.cargoCapacity
+        this.cargoStats.cargoCapacity
       );
 
       const foodNeeded = Math.ceil(
         Fleet.calculateAsteroidMiningFoodToConsume(
-          this.fleetStats,
+          this.stats,
           MAX_AMOUNT,
           timeInSeconds
         )
@@ -259,31 +330,31 @@ export class SageFleet {
 
       const ammoNeeded = Math.ceil(
         Fleet.calculateAsteroidMiningAmmoToConsume(
-          this.fleetStats,
+          this.stats,
           MAX_AMOUNT,
           timeInSeconds
         )
       );
 
-      const fuelNeeded = this.fleetMovementStats.planetExitFuelAmount;
+      const fuelNeeded = this.movementStats.planetExitFuelAmount;
 
       return { foodNeeded, ammoNeeded, fuelNeeded, timeInSeconds };
     }
 
     calculateSubwarpFuelBurnWithDistance(distance: number) {
-      return Fleet.calculateSubwarpFuelBurnWithDistance(this.fleetStats, distance);
+      return Fleet.calculateSubwarpFuelBurnWithDistance(this.stats, distance);
     }
 
     calculateWarpFuelBurnWithDistance(distance: number) {
-      return Fleet.calculateWarpFuelBurnWithDistance(this.fleetStats, distance);
+      return Fleet.calculateWarpFuelBurnWithDistance(this.stats, distance);
     }
 
     calculateWarpTimeWithDistance(distance: number) {
-      return Fleet.calculateWarpTime(this.fleetStats, distance);
+      return Fleet.calculateWarpTime(this.stats, distance);
     }
 
     calculateSubwarpTimeWithDistance(distance: number) {
-      return Fleet.calculateSubwarpTime(this.fleetStats, distance);
+      return Fleet.calculateSubwarpTime(this.stats, distance);
     }
     /** END HELPERS */
 
@@ -334,10 +405,10 @@ export class SageFleet {
       let amountToDeposit = BN.min(
         amount,
         fuelAta
-          ? new BN(this.fleetCargoStats.fuelCapacity).sub(
+          ? new BN(this.cargoStats.fuelCapacity).sub(
               new BN(fuelAta.amount)
             )
-          : new BN(this.fleetCargoStats.fuelCapacity)
+          : new BN(this.cargoStats.fuelCapacity)
       );
       if (amountToDeposit.eq(new BN(0))) return { type: "FleetFuelTankIsFull" as const };
       amountToDeposit = BN.min(amountToDeposit, new BN(fuelStarbaseAta.amount));
@@ -489,10 +560,10 @@ export class SageFleet {
       let amountToDeposit = BN.min(
         amount,
         ammoAta
-          ? new BN(this.fleetCargoStats.ammoCapacity).sub(
+          ? new BN(this.cargoStats.ammoCapacity).sub(
               new BN(ammoAta.amount)
             )
-          : new BN(this.fleetCargoStats.ammoCapacity)
+          : new BN(this.cargoStats.ammoCapacity)
       );
       if (amountToDeposit.eq(new BN(0))) return { type: "FleetAmmoBankIsFull" as const };
       amountToDeposit = BN.min(amountToDeposit, new BN(ammoStarbaseAta.amount));
@@ -854,6 +925,18 @@ export class SageFleet {
       const [userPilotXp] = userPoints.data.filter((account) => account.data.pointCategory.equals(pilotXpCategory.category));
       const [userCouncilRankXp] = userPoints.data.filter((account) => account.data.pointCategory.equals(councilRankXpCategory.category));
 
+      const userMiningXpKey = userMiningXp ? 
+        userMiningXp.key : 
+        UserPoints.findAddress(this.getSageGame().getPointsProgram(), miningXpCategory.category, this.player.getPlayerProfile().key)[0];
+
+      const userPilotXpKey = userPilotXp ?
+        userPilotXp.key :
+        UserPoints.findAddress(this.getSageGame().getPointsProgram(), pilotXpCategory.category, this.player.getPlayerProfile().key)[0];
+
+      const userCouncilRankXpKey = userCouncilRankXp ?
+        userCouncilRankXp.key :
+        UserPoints.findAddress(this.getSageGame().getPointsProgram(), councilRankXpCategory.category, this.player.getPlayerProfile().key)[0];
+
       /* console.log(
         this.getSageGame().getSageProgram().programId,
         this.getSageGame().getCargoProgram().programId,
@@ -898,13 +981,13 @@ export class SageFleet {
         this.fleet.data.fuelTank,
         this.getSageGame().getCargoTypeByResourceName(ResourceName.Fuel),
         this.getSageGame().getCargoStatsDefinition().key,
-        userMiningXp.key,
+        userMiningXpKey,
         miningXpCategory.category,
         miningXpCategory.modifier,
-        userPilotXp.key,
+        userPilotXpKey,
         pilotXpCategory.category,
         pilotXpCategory.modifier,
-        userCouncilRankXp.key,
+        userCouncilRankXpKey,
         councilRankXpCategory.category,
         councilRankXpCategory.modifier,
         this.getSageGame().getGameState().key,
@@ -1137,16 +1220,24 @@ export class SageFleet {
       const [userPilotXp] = userPoints.data.filter((account) => account.data.pointCategory.equals(pilotXpCategory.category));
       const [userCouncilRankXp] = userPoints.data.filter((account) => account.data.pointCategory.equals(councilRankXpCategory.category));
 
+      const userPilotXpKey = userPilotXp ?
+        userPilotXp.key :
+        UserPoints.findAddress(this.getSageGame().getPointsProgram(), pilotXpCategory.category, this.player.getPlayerProfile().key)[0];
+
+      const userCouncilRankXpKey = userCouncilRankXp ?
+        userCouncilRankXp.key :
+        UserPoints.findAddress(this.getSageGame().getPointsProgram(), councilRankXpCategory.category, this.player.getPlayerProfile().key)[0];
+
       const ix_movement = this.fleet.state.MoveWarp ? 
         [Fleet.moveWarpHandler(
           this.getSageGame().getSageProgram(),
           this.getSageGame().getPointsProgram(),
           this.getPlayer().getPlayerProfile().key,
           this.key,
-          userPilotXp.key,
+          userPilotXpKey,
           pilotXpCategory.category,
           pilotXpCategory.modifier,
-          userCouncilRankXp.key,
+          userCouncilRankXpKey,
           councilRankXpCategory.category,
           councilRankXpCategory.modifier,
           this.getSageGame().getGame().key,
@@ -1162,10 +1253,10 @@ export class SageFleet {
           this.getSageGame().getCargoStatsDefinition().key,
           fuelInTankData.tokenAccount.address,
           fuelMint,
-          userPilotXp.key,
+          userPilotXpKey,
           pilotXpCategory.category,
           pilotXpCategory.modifier,
-          userCouncilRankXp.key,
+          userCouncilRankXpKey,
           councilRankXpCategory.category,
           councilRankXpCategory.modifier,
           this.getSageGame().getGame().key,
@@ -1174,6 +1265,94 @@ export class SageFleet {
         return { type: "Success" as const, ixs: ix_movement };
     }
     /** END TRAVEL */
+
+    /** SCANNING */
+    async ixScanForSurveyDataUnits() {
+      const ixs: InstructionReturn[] = [];
+
+      const sduMint = this.getSageGame().getResourceMintByName(ResourceName.Sdu)
+
+      const currentSector = await this.getCurrentSectorAsync();
+      if (currentSector.type !== "Success") return currentSector;
+
+      const cargoHold = await this.getCurrentCargoDataByType(CargoPodType.CargoHold);
+      if (cargoHold.type !== "Success") return cargoHold;
+
+      if (cargoHold.data.fullLoad) return { type: "FleetCargoIsFull" as const }
+
+      const [toolInCargoData] = cargoHold.data.loadedResources.filter((item) => item.mint.equals(sduMint));
+      if (!toolInCargoData) return { type: "FleetCargoPodTokenAccountNotFound" as const };
+
+      if (!this.onlyDataRunner && toolInCargoData.tokenAccount.amount < this.stats.miscStats.scanCost) return { type: "NoEnoughRepairKits" as const }
+
+      const sduTokenFrom = getAssociatedTokenAddressSync(
+        sduMint,
+        this.getSageGame().getSuvreyDataUnitTracker().data.signer,
+        true
+      );
+
+      const sduTokenTo = this.getSageGame().ixCreateAssociatedTokenAccountIdempotent(cargoHold.data.key, sduMint)
+      ixs.push(sduTokenTo.instruction);
+
+      // Points
+      const userPoints = await this.player.getUserPointsAsync();
+      if (userPoints.type !== "Success") return userPoints;
+
+      const dataRunningXpCategory = this.getSageGame().getGamePoints().dataRunningXpCategory;
+      const councilRankXpCategory = this.getSageGame().getGamePoints().councilRankXpCategory;
+
+      const [userDataRunningXp] = userPoints.data.filter((account) => account.data.pointCategory.equals(dataRunningXpCategory.category));
+      const [userCouncilRankXp] = userPoints.data.filter((account) => account.data.pointCategory.equals(councilRankXpCategory.category));
+      
+      const userDataRunningKey = userDataRunningXp ? 
+        userDataRunningXp.key : 
+        UserPoints.findAddress(this.getSageGame().getPointsProgram(), dataRunningXpCategory.category, this.player.getPlayerProfile().key)[0];  
+
+      const userCouncilRankXpKey = userCouncilRankXp ? 
+        userCouncilRankXp.key : 
+        UserPoints.findAddress(this.getSageGame().getPointsProgram(), councilRankXpCategory.category, this.player.getPlayerProfile().key)[0];  
+
+      const input: ScanForSurveyDataUnitsInput = { keyIndex: 0 };
+
+      // Movement Handler
+      const ix_movement = await this.ixMovementHandler();
+      if (ix_movement.type !== "Success") return ix_movement;
+      if (ix_movement.ixs.length > 0) ixs.push(...ix_movement.ixs);
+
+      const ix_0 = SurveyDataUnitTracker.scanForSurveyDataUnits(
+        this.getSageGame().getSageProgram(),
+        this.getSageGame().getCargoProgram(),
+        this.getSageGame().getPointsProgram(),
+        this.getSageGame().getAsyncSigner(),
+        this.player.getPlayerProfile().key,
+        this.player.getProfileFactionAddress(),
+        this.fleet.key,
+        currentSector.data.key,
+        this.getSageGame().getSuvreyDataUnitTracker().key,
+        cargoHold.data.key,
+        sduMint,
+        this.getSageGame().getCargoTypeByResourceName(ResourceName.Tool),
+        this.getSageGame().getCargoStatsDefinition().key,
+        sduTokenFrom,
+        sduTokenTo.address,
+        toolInCargoData.tokenAccount.address,
+        this.getSageGame().getResourceMintByName(ResourceName.Tool),
+        userDataRunningKey,
+        dataRunningXpCategory.category,
+        dataRunningXpCategory.modifier,
+        userCouncilRankXpKey,
+        councilRankXpCategory.category,
+        councilRankXpCategory.modifier,
+        this.getSageGame().getGame().key,
+        this.getSageGame().getGameState().key,
+        input
+      );
+
+      ixs.push(ix_0);
+
+      return { type: "Success" as const, ixs };
+    }
+    /** END SCANNING */
 
     /** END SAGE INSTRUCTIONS */
 }

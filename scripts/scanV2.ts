@@ -4,7 +4,7 @@ import { subwarpToSector } from "../actions/subwarpToSector";
 import { undockFromStarbase } from "../actions/undockFromStarbase";
 import { unloadCargo } from "../actions/unloadCargo";
 import { warpToSector } from "../actions/warpToSector";
-import { MovementType } from "../common/constants";
+import { MAX_AMOUNT, MovementType } from "../common/constants";
 import { NotificationMessage } from "../common/notifications";
 import { InputResourcesForCargo, SectorCoordinates } from "../common/types";
 import { actionWrapper } from "../utils/actions/actionWrapper";
@@ -19,8 +19,10 @@ import { ResourceName } from "../src/SageGame";
 import { CargoPodType } from "../src/SageFleet";
 import { createWarpRoute } from "../utils/movementsV2/createWarpRoute";
 import { setResourcesAmountV2 } from "../utils/inputsV2/setResourcesAmount";
+import { setScanCoordinates } from "../utils/inputsV2/setScanCoordinates";
+import { scanSdu } from "../actions/scanSdu";
 
-export const cargoV2 = async (
+export const scanV2 = async (
   player: SagePlayer,
 ) => {
   // 1. set cycles
@@ -33,25 +35,14 @@ export const cargoV2 = async (
   const currentSector = await fleet.data.getCurrentSectorAsync();
   if (currentSector.type !== "Success") return currentSector;
 
-  // 3. set cargo sector
-  const starbase = await setStarbaseV2(fleet.data);
-  if (starbase.type !== "Success") return starbase;
+  // 3. set sector coords
+  const coords = await setScanCoordinates();
+  if (coords.type !== "Success") return coords;
 
-  const sector = player.getSageGame().getSectorByCoords(starbase.data.data.sector as SectorCoordinates);
+  const sector = await player.getSageGame().getSectorByCoordsAsync(coords.data);
   if (sector.type !== "Success") return sector;
 
-  // 4. set cargo resource allocation
-  const resourcesGo = await setResourcesAmountV2(
-    "Enter resources to freight in starbase DESTINATION (e.g., Carbon 5000), or press enter to skip:"
-  );
-  const resourcesBack = await setResourcesAmountV2(
-    "Enter resources to freight in CURRENT starbase (ex: Hydrogen 2000). Press enter to skip:"
-  );
-
-  const effectiveResourcesGo: InputResourcesForCargo[] = [];
-  const effectiveResourcesBack: InputResourcesForCargo[] = [];
-
-  // 5. set fleet movement type (->)
+  // 4. set fleet movement type (->)
   // const sectorsDistanceGo = fleet.data.getSageGame().calculateDistanceBySector(currentSector.data, sector.data);
 
   const movementGo = await setMovementTypeV2()
@@ -116,24 +107,22 @@ export const cargoV2 = async (
   const cargoPod = await fleet.data.getCurrentCargoDataByType(CargoPodType.CargoHold);
     if (cargoPod.type !== "Success" && cargoPod.type !== "CargoPodIsEmpty") return cargoPod;
 
-  // 7. start cargo loop
+  // 7. start scan loop
   for (let i = 0; i < cycles; i++) {
     // 1. load fuel
     if (fuelTank.data.loadedAmount < fuelNeeded) {
       await actionWrapper(loadCargo, fleet.data, ResourceName.Fuel, CargoPodType.FuelTank, new BN(fuelNeeded - fuelTank.data.loadedAmount));
     }
 
-    // 2. load cargo go
-    for (const item of resourcesGo) {
-      const loading = await actionWrapper(loadCargo, fleet.data, item.resource, CargoPodType.CargoHold, new BN(item.amount));
-      if (loading.type === "Success")
-        effectiveResourcesGo.push(item);
+    // 2. load tools
+    if (!fleet.data.getOnlyDataRunner()) {
+      await actionWrapper(loadCargo, fleet.data, ResourceName.Tool, CargoPodType.CargoHold, new BN(MAX_AMOUNT));
     }
     
-    // 4. undock from starbase
+    // 3. undock from starbase
     await actionWrapper(undockFromStarbase, fleet.data);
 
-    // 5. move to sector (->)
+    // 4. move to sector (->)
     if (movementGo.movement === MovementType.Warp) {
       for (let i = 1; i < goRoute.data.length; i++) {
         const sectorTo = goRoute.data[i];
@@ -146,23 +135,11 @@ export const cargoV2 = async (
       await actionWrapper(subwarpToSector, fleet.data, sectorTo);
     }
 
-    // 6. dock to starbase
-    await actionWrapper(dockToStarbase, fleet.data);
-
-    // 7. unload cargo go
-    for (const item of effectiveResourcesGo) {
-      await actionWrapper(unloadCargo, fleet.data, item.resource, CargoPodType.CargoHold, new BN(item.amount));
+    // 6. scan sector
+    for (let i = 1; i < MAX_AMOUNT; i++) {
+      const scan = await actionWrapper(scanSdu, fleet.data, i);
+      if (scan.type !== "Success") break;
     }
-    
-    // 8. load cargo back
-    for (const item of resourcesBack) {
-      const loading = await actionWrapper(loadCargo, fleet.data, item.resource, CargoPodType.CargoHold, new BN(item.amount));
-      if (loading.type === "Success")
-        effectiveResourcesBack.push(item);
-    }
-
-    // 9. undock from starbase
-    await actionWrapper(undockFromStarbase, fleet.data);
 
     // 10. move to sector (<-)
     if (movementBack.movement === MovementType.Warp) {
@@ -180,13 +157,14 @@ export const cargoV2 = async (
     // 11. dock to starbase
     await actionWrapper(dockToStarbase, fleet.data);
 
-    // 12. unload cargo back
-    for (const item of effectiveResourcesBack) {
-      await actionWrapper(unloadCargo, fleet.data, item.resource, CargoPodType.CargoHold, new BN(item.amount));
+    // 12. unload cargo
+    await actionWrapper(unloadCargo, fleet.data, ResourceName.Sdu, CargoPodType.CargoHold, new BN(MAX_AMOUNT));
+    if (!fleet.data.getOnlyDataRunner()) {
+      await actionWrapper(unloadCargo, fleet.data, ResourceName.Tool, CargoPodType.CargoHold, new BN(MAX_AMOUNT));
     }
 
     // 13. send notification
-    await sendNotification(NotificationMessage.CARGO_SUCCESS, fleet.data.getName());
+    await sendNotification(NotificationMessage.SCAN_SUCCESS, fleet.data.getName());
   }
 
   return { type: "Success" as const };
