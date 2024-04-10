@@ -14,8 +14,12 @@ export const loadCargo = async (
   let ix = await fleet.ixLoadCargo(resourceName, cargoPodType, amount);
 
   switch (ix.type) {
-    case "FleetCargoIsFull":
+    case "FleetCargoPodIsFull":
       console.log("Your fleet cargo is full");
+      return;
+
+    case "StarbaseCargoIsEmpty":
+      console.log("Starbase cargo is empty");
       return;
     default:
       if (ix.type !== "Success") {

@@ -54,3 +54,45 @@ export const verifiedRpc = [
   "solana-mainnet.api.syndica.io",
   // aggiungere QuickNode
 ];
+
+
+export enum MovementType {
+  Warp = "Warp",
+  Subwarp = "Subwarp",
+}
+
+export const movements = [
+  MovementType.Warp,
+  MovementType.Subwarp,
+]
+
+export enum PriorityLevel {
+  None = "None",
+  Default = "Default",
+  Low = "Low",
+  Medium = "Medium",
+  High = "High",
+  Custom = "Custom",
+}
+
+export enum PriorityLevelValue {
+  Default = 0,
+  Low = 10000,
+  Medium = 100000,
+  High = 500000,
+  MaxCustom = 1000000
+}
+
+export type CustomPriorityFee = {
+  level: PriorityLevel;
+  value?: number;
+}
+
+export const priority: PriorityLevel[] = [
+  PriorityLevel.Default, 
+  PriorityLevel.Low, 
+  PriorityLevel.Medium, 
+  PriorityLevel.High,
+  PriorityLevel.Custom,
+  PriorityLevel.None
+];

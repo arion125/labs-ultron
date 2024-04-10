@@ -1,23 +1,27 @@
-import { PublicKey } from "@solana/web3.js";
-import { SageFleetHandler } from "../src/SageFleetHandler";
-import { SageGameHandler } from "../src/SageGameHandler";
+import { SageFleet } from "../src/SageFleet";
+import { ResourceName } from "../src/SageGame";
 
 export const stopMining = async (
-  fleetPubkey: PublicKey,
-  resource: string,
-  gh: SageGameHandler,
-  fh: SageFleetHandler
+  fleet: SageFleet,
+  resourceName: ResourceName
 ) => {
   console.log(" ");
-  console.log(`Stop mining ${resource}...`);
+  console.log(`Stop mining ${resourceName}...`);
 
-  let ix = await fh.ixStopMining(fleetPubkey);
+  let ix = await fleet.ixStopMining();
+
   if (ix.type !== "Success") {
     throw new Error(ix.type);
   }
 
-  await gh.sendDynamicTransactions(ix.ixs, true);
+  const txs = await fleet.getSageGame().buildDynamicTransactions(ix.ixs, false);
+  if (txs.type !== "Success") {
+    console.log("Failed to build dynamic transactions");
+    return;
+  }
+
+  await fleet.getSageGame().sendDynamicTransactions(txs.data);
 
   console.log(`Mining stopped!`);
-  await gh.getQuattrinoBalance();
+  await fleet.getSageGame().getQuattrinoBalance();
 };

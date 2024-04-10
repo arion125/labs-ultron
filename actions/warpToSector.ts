@@ -1,36 +1,44 @@
-import { PublicKey } from "@solana/web3.js";
-import { SectorCoordinates } from "../common/types";
-import { SageFleetHandler } from "../src/SageFleetHandler";
-import { SageGameHandler } from "../src/SageGameHandler";
 import { wait } from "../utils/actions/wait";
-import { calcSectorsDistanceByCoords } from "../utils/sectors/calcSectorsDistanceByCoords";
+import { SageFleet } from "../src/SageFleet";
+import { Sector } from "@staratlas/sage";
 
 export const warpToSector = async (
-  fleetPubkey: PublicKey,
-  from: SectorCoordinates,
-  to: SectorCoordinates,
-  gh: SageGameHandler,
-  fh: SageFleetHandler,
+  fleet: SageFleet,
+  sector: Sector,
   waitCooldown?: boolean
 ) => {
   console.log(" ");
   console.log(`Start warp...`);
 
-  const distanceCoords = calcSectorsDistanceByCoords(from, to);
+  const currentSector = await fleet.getCurrentSectorAsync();
+  if (currentSector.type !== "Success") return currentSector;
 
-  let ix = await fh.ixWarpToCoordinate(fleetPubkey, distanceCoords, from, to);
+  const sectorsDistance = fleet.getSageGame().calculateDistanceBySector(currentSector.data, sector);
+  const fuelNeeded = fleet.calculateWarpFuelBurnWithDistance(sectorsDistance);
+
+  const timeToWarp = fleet.calculateWarpTimeWithDistance(sectorsDistance);
+
+  let ix = await fleet.ixWarpToSector(sector, fuelNeeded);
+
   if (ix.type !== "Success") {
     throw new Error(ix.type);
   }
 
-  await gh.sendDynamicTransactions(ix.ixs, true);
+  const txs = await fleet.getSageGame().buildDynamicTransactions(ix.ixs, false);
+  if (txs.type !== "Success") {
+    console.log("Failed to build dynamic transactions");
+    return;
+  }
 
-  console.log(`Waiting for ${ix.timeToWarp} seconds...`);
-  await gh.getQuattrinoBalance();
-  await wait(ix.timeToWarp);
+  await fleet.getSageGame().sendDynamicTransactions(txs.data);
+
+  console.log(`Waiting for ${timeToWarp} seconds...`);
+  await wait(timeToWarp);
   console.log(`Warp completed!`);
+  
+  await fleet.getSageGame().getQuattrinoBalance();
 
   if (waitCooldown) {
-    await wait(ix.warpCooldown);
+    await wait(fleet.fleetMovementStats.warpCoolDown);
   }
 };

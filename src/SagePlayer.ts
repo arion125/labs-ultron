@@ -2,8 +2,9 @@ import { PublicKey } from "@solana/web3.js";
 import { SageGame } from "./SageGame";
 import { PlayerProfile } from "@staratlas/player-profile";
 import { ProfileFactionAccount } from "@staratlas/profile-faction";
-import { readFromRPCOrError, readAllFromRPC, stringToByteArray } from "@staratlas/data-source";
+import { readFromRPCOrError, readAllFromRPC } from "@staratlas/data-source";
 import { Fleet, SagePlayerProfile, Starbase, StarbasePlayer } from "@staratlas/sage";
+import { UserPoints } from "@staratlas/points"
 
 export class SagePlayer {
 
@@ -123,5 +124,35 @@ export class SagePlayer {
       const starbasePlayerPod = await this.getSageGame().getCargoPodsByAuthority(this.getStarbasePlayerAddress(starbase));
       if (starbasePlayerPod.type !== "Success") return starbasePlayerPod;
       return { type: "Success" as const, data: starbasePlayerPod.data[0] };
+    }
+
+    /** POINTS */
+    async getUserPointsAsync() {
+      try {
+        const fetchUserPoints = await readAllFromRPC(
+          this.sageGame.getProvider().connection,
+          this.sageGame.getPointsProgram(),
+          UserPoints,
+          "confirmed",
+          [
+            {
+              memcmp: {
+                offset: 9,
+                bytes: this.playerProfile.key.toBase58(),
+              },
+            }
+          ]
+        );
+
+        const userPoints = fetchUserPoints.flatMap((item) =>
+          item.type === "ok" ? [item.data] : []
+        );
+
+        if (userPoints.length === 0) throw new Error();
+        
+        return { type: "Success" as const, data: userPoints };
+      } catch (e) {
+        return { type: "UserPointsNotFound" as const };
+      }
     }
 }

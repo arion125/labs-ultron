@@ -21,6 +21,9 @@ import { setupProfileData } from "./utils/inputs/setupProfileData";
 import { SagePlayer } from "./src/SagePlayer"; */
 import { miningV2 } from "./scripts/miningV2";
 import { PlanetType } from "@staratlas/sage";
+import { setPriority } from "./utils/inputsV2/setPriority";
+import { PriorityLevel } from "./common/constants";
+import { setCustomPriority } from "./utils/inputsV2/setCustomPriority";
 // import { SageFleet } from "./src/SageFleet";
 
 /* const main = async () => {
@@ -119,6 +122,10 @@ const test = async () => {
     return;
   }
 
+  // qui l'utente configura il livello di priority fee desiderato e l'eventuale custom priority fee value
+  const priorityFees = await setPriority();
+  const { customPriority } = priorityFees.priority === PriorityLevel.Custom ? await setCustomPriority() : { customPriority: 0 }
+
   // qui l'utente sceglie il profilo desiderato
   const { profile } = await inputProfile();
 
@@ -142,8 +149,8 @@ const test = async () => {
 
 
   // 1. Setup environment (SageGame.ts) [keypair required]
-  const sage = await SageGame.init(keypair, connection.data);
-
+  const sage = await SageGame.init(keypair, connection.data, { level: priorityFees.priority, value: customPriority });
+  // console.log(sage.getGame().data)
 
   // 2. Setup player (SagePlayer.ts)
   const playerProfiles = await sage.getPlayerProfilesAsync();
@@ -154,11 +161,14 @@ const test = async () => {
 
   const player = await SagePlayer.init(sage, playerProfiles.data[0]);
 
+  /* const userPoints = await player.getUserPointsAsync();
+  if (userPoints.type !== "Success") return;
+  console.log(userPoints.data) */
 
   // 3. Play with mining
   const mining = await miningV2(player);
   if (mining.type !== "Success") {
-    console.log("Mining failed.")
+    console.log("Mining failed.", mining.type)
     return;
   }
 

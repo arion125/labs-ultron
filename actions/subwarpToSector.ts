@@ -1,36 +1,41 @@
 import { PublicKey } from "@solana/web3.js";
 import { SectorCoordinates } from "../common/types";
-import { SageFleetHandler } from "../src/SageFleetHandler";
-import { SageGameHandler } from "../src/SageGameHandler";
 import { wait } from "../utils/actions/wait";
 import { calcSectorsDistanceByCoords } from "../utils/sectors/calcSectorsDistanceByCoords";
+import { Sector } from "@staratlas/sage";
+import { SageFleet } from "../src/SageFleet";
 
 export const subwarpToSector = async (
-  fleetPubkey: PublicKey,
-  from: SectorCoordinates,
-  to: SectorCoordinates,
-  gh: SageGameHandler,
-  fh: SageFleetHandler
+  fleet: SageFleet,
+  sector: Sector,
 ) => {
   console.log(" ");
   console.log(`Start subwarp...`);
 
-  const distanceCoords = calcSectorsDistanceByCoords(from, to);
+  const currentSector = await fleet.getCurrentSectorAsync();
+  if (currentSector.type !== "Success") return currentSector;
 
-  let ix = await fh.ixSubwarpToCoordinate(
-    fleetPubkey,
-    distanceCoords,
-    from,
-    to
-  );
+  const sectorsDistance = fleet.getSageGame().calculateDistanceBySector(currentSector.data, sector);
+  const fuelNeeded = fleet.calculateSubwarpFuelBurnWithDistance(sectorsDistance);
+
+  const timeToSubwarp = fleet.calculateSubwarpTimeWithDistance(sectorsDistance);
+
+  let ix = await fleet.ixSubwarpToSector(sector, fuelNeeded);
   if (ix.type !== "Success") {
     throw new Error(ix.type);
   }
 
-  await gh.sendDynamicTransactions(ix.ixs, true);
+  const txs = await fleet.getSageGame().buildDynamicTransactions(ix.ixs, false);
+  if (txs.type !== "Success") {
+    console.log("Failed to build dynamic transactions");
+    return;
+  }
 
-  console.log(`Waiting for ${ix.timeToSubwarp} seconds...`);
-  await gh.getQuattrinoBalance();
-  await wait(ix.timeToSubwarp);
+  await fleet.getSageGame().sendDynamicTransactions(txs.data);
+
+  console.log(`Waiting for ${timeToSubwarp} seconds...`);
+  await wait(timeToSubwarp);
   console.log(`Subwarp completed!`);
+  
+  await fleet.getSageGame().getQuattrinoBalance();
 };

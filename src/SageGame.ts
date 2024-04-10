@@ -1,16 +1,17 @@
 import { Provider, AnchorProvider, Program, Wallet, BN } from "@staratlas/anchor";
-import { Connection, Finality, Keypair, PublicKey, Version, VersionedTransaction } from "@solana/web3.js";
+import { Connection, Finality, Keypair, PublicKey, VersionedTransaction, } from "@solana/web3.js";
 import { readFromRPCOrError, readAllFromRPC, stringToByteArray, InstructionReturn } from "@staratlas/data-source";
-import { PLAYER_PROFILE_IDL, PlayerProfileIDLProgram } from "@staratlas/player-profile";
-import { Fleet, Game, GameState, MineItem, Planet, PlanetType, Resource, SAGE_IDL, SageIDLProgram, Sector, Star, Starbase, calculateDistance, getCargoPodsByAuthority } from "@staratlas/sage";
+import { PLAYER_PROFILE_IDL, PlayerProfileIDLProgram, } from "@staratlas/player-profile";
+import { Fleet, Game, GameState, MineItem, Planet, PlanetType, Points, Resource, SAGE_IDL, SageIDLProgram, Sector, Star, Starbase, calculateDistance, getCargoPodsByAuthority } from "@staratlas/sage";
 import { ProfileFactionIDLProgram, PROFILE_FACTION_IDL } from "@staratlas/profile-faction";
 import { CargoIDLProgram, CARGO_IDL, CargoStatsDefinition, CargoType } from "@staratlas/cargo";
 import { CraftingIDLProgram, CRAFTING_IDL } from "@staratlas/crafting";
 import { PlayerProfile } from "@staratlas/player-profile";
 import { SectorCoordinates } from "../common/types";
-import { AsyncSigner, byteArrayToString, getParsedTokenAccountsByOwner, createAssociatedTokenAccountIdempotent, keypairToAsyncSigner, buildDynamicTransactions, sendTransaction, buildOptimalDynamicTransactions, getWritableAccounts, TransactionReturn, buildDynamicTransactionsNoSigning, buildAndSignTransactionsFromIxWithSigners, GetPriorityFee, GetComputeLimit, getSimulationUnits } from "@staratlas/data-source";
+import { AsyncSigner, byteArrayToString, getParsedTokenAccountsByOwner, createAssociatedTokenAccountIdempotent, keypairToAsyncSigner, sendTransaction, buildOptimalDynamicTransactions, TransactionReturn, getSimulationUnits } from "@staratlas/data-source";
 import { createBurnInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
-import { quattrinoTokenPubkey } from "../common/constants";
+import { CustomPriorityFee, PriorityLevel, PriorityLevelValue, quattrinoTokenPubkey } from "../common/constants";
+import { PointsIDLProgram, POINTS_IDL, PointsCategory,  } from "@staratlas/points"
 import bs58 from "bs58";
 
 export enum ResourceName {
@@ -53,26 +54,6 @@ export type MinableResource = {
   mineItem: MineItem;
 }
 
-enum PriorityLevel {
-  None = "None",
-  Basic = "Basic",
-  Default = "Default",
-  Low = "Low",
-  High = "High",
-}
-
-type PriorityFee = {
-  jsonrpc: string;
-  result: {
-    priorityFeeEstimate: number;
-  };
-  id: string;
-}
-
-type PriorityFeeEstimate = {
-  priorityFeeEstimate: number;
-}
-
 export class SageGame {
     
     // Sage Programs
@@ -84,13 +65,14 @@ export class SageGame {
     // static readonly PROFILE_VAULT_PROGRAM_ID = new PublicKey("pv1ttom8tbyh83C1AVh6QH2naGRdVQUVt3HY1Yst5sv");
     static readonly CARGO_PROGRAM_ID = new PublicKey("Cargo2VNTPPTi9c1vq1Jw5d3BWUNr18MjRtSupAghKEk");
     static readonly CRAFTING_PROGRAM_ID = new PublicKey("CRAFT2RPXPJWCEix4WpJST3E7NLf79GTqZUL75wngXo5");
-    // static readonly POINTS_PROGRAM_ID = new PublicKey("")
+    static readonly POINTS_PROGRAM_ID = new PublicKey("Point2iBvz7j5TMVef8nEgpmz4pDr7tU7v3RjAfkQbM")
 
     private sageProgram: SageIDLProgram;
     private playerProfileProgram: PlayerProfileIDLProgram;
     private profileFactionProgram: ProfileFactionIDLProgram;
     private cargoProgram: CargoIDLProgram;
     private craftingProgram: CraftingIDLProgram;
+    private pointsProgram: PointsIDLProgram;
 
     private resourcesMint: Record<ResourceName, PublicKey> = {
       [ResourceName.Food]: new PublicKey("foodQJAztMzX1DKpLaiounNe2BDMds5RNuPC6jsNrDG"),
@@ -125,11 +107,12 @@ export class SageGame {
       [ResourceName.Magnet]: new PublicKey("MAGNMDeDJLvGAnriBvzWruZHfXNwWHhxnoNF75AQYM5"),
       [ResourceName.Polymer]: new PublicKey("PoLYs2hbRt5iDibrkPT9e6xWuhSS45yZji5ChgJBvcB"),
       [ResourceName.Steel]: new PublicKey("STEELXLJ8nfJy3P4aNuGxyNRbWPohqHSwxY75NsJRGG"),
-  };
+    };
 
     // CHECK: is ! safe here?
     private game!: Game;
     private gameState!: GameState;
+    private points!: Points;
     private sectors!: Sector[];
     private stars!: Star[];
     private planets!: Planet[];
@@ -138,12 +121,14 @@ export class SageGame {
     private starbases!: Starbase[];
 
     private cargoStatsDefinition!: CargoStatsDefinition;
+    private pointsCategories!: PointsCategory[];
     
     private playerKeypair!: Keypair;
     private funder: AsyncSigner;
     private connection!: Connection;
+    private customPriorityFee: CustomPriorityFee = { level: PriorityLevel.Custom, value: 0 };
 
-    private constructor(signer: Keypair, connection: Connection) {
+    private constructor(signer: Keypair, connection: Connection, customPriorityFee: CustomPriorityFee) {
         this.playerKeypair = signer;
         this.connection = connection;
         this.provider = new AnchorProvider(
@@ -176,14 +161,21 @@ export class SageGame {
           SageGame.CRAFTING_PROGRAM_ID,
           this.provider
         );
+        this.pointsProgram = new Program(
+          POINTS_IDL,
+          SageGame.POINTS_PROGRAM_ID,
+          this.provider
+        );
         this.funder = keypairToAsyncSigner(signer);
+        this.customPriorityFee = customPriorityFee;
     }
 
-    static async init(signer: Keypair, connection: Connection): Promise<SageGame> {
-      const game = new SageGame(signer, connection);
+    static async init(signer: Keypair, connection: Connection, customPriorityFee: CustomPriorityFee): Promise<SageGame> {
+      const game = new SageGame(signer, connection, customPriorityFee);
       
-      const [gameAndGameStateAccounts, cargoStatsDefinition, sectors, stars, planets, mineItems, resources, starbases] = await Promise.all([
+      const [gameAndGameState, pointsCategories, cargoStatsDefinition, sectors, stars, planets, mineItems, resources, starbases] = await Promise.all([
         game.getGameAndGameStateAccounts(),
+        game.getPointsCategoriesAccount(),
         game.getCargoStatsDefinitionAccount(),
         game.getAllSectorsAccount(),
         game.getAllStarsAccount(),
@@ -193,7 +185,8 @@ export class SageGame {
         game.getAllStarbasesAccount()
       ]);
 
-      if (gameAndGameStateAccounts.type === "GameAndGameStateNotFound") throw new Error(gameAndGameStateAccounts.type);
+      if (gameAndGameState.type === "GameAndGameStateNotFound") throw new Error(gameAndGameState.type);
+      if (pointsCategories.type === "PointsCategoriesNotFound") throw new Error(pointsCategories.type);
       if (cargoStatsDefinition.type === "CargoStatsDefinitionNotFound") throw new Error(cargoStatsDefinition.type);
       if (sectors.type === "SectorsNotFound") throw new Error(sectors.type);
       if (stars.type === "StarsNotFound") throw new Error(stars.type);
@@ -202,8 +195,10 @@ export class SageGame {
       if (resources.type === "ResourcesNotFound") throw new Error(resources.type);
       if (starbases.type === "StarbasesNotFound") throw new Error(starbases.type);
 
-      game.game = gameAndGameStateAccounts.data.game;
-      game.gameState = gameAndGameStateAccounts.data.gameState;
+      game.game = gameAndGameState.data.game;
+      game.gameState = gameAndGameState.data.gameState;
+      game.points = gameAndGameState.data.game.data.points;
+      game.pointsCategories = pointsCategories.data;
       game.cargoStatsDefinition = cargoStatsDefinition.data;
       game.sectors = sectors.data;
       game.stars = stars.data;
@@ -251,6 +246,10 @@ export class SageGame {
       return this.craftingProgram;
     }
 
+    getPointsProgram() {
+      return this.pointsProgram;
+    }
+
     getResourcesMint() {
       return this.resourcesMint;
     }
@@ -293,6 +292,10 @@ export class SageGame {
     getGameState() {
       return this.gameState;
     }
+
+    getGamePoints() {
+      return this.points;
+    }
     /** END GAME */
 
 
@@ -319,6 +322,35 @@ export class SageGame {
         }
     }
     /** END GAME STATES */
+
+
+    /** POINTS CATEGORY */
+    // All Points Category Account - fetch only one per game
+    private async getPointsCategoriesAccount() { // FIX: map accounts to correct PointsCategory in Points type
+      try {
+        const fetchPointsCategories = await readAllFromRPC(
+          this.provider.connection,
+          this.pointsProgram,
+          PointsCategory,
+          "confirmed",
+        );
+
+        const pointsCategories = []
+        for (const pointsCategory of fetchPointsCategories) {
+          if (pointsCategory.type !== "ok") throw new Error()
+          pointsCategories.push(pointsCategory.data)
+        }
+
+        return { type: "Success" as const, data: pointsCategories };
+      } catch (e) {
+        return { type: "PointsCategoriesNotFound" as const };
+      }
+    }
+
+    getPointsCategories() {
+      return this.pointsCategories;
+    }
+    /** END POINTS CATEGORY */
 
 
     /** CARGO STATS DEFINITION */
@@ -406,7 +438,7 @@ export class SageGame {
 
     getSectorByCoords(sectorCoords: SectorCoordinates | [BN,BN]) {
       const [sectorKey] = Sector.findAddress(this.sageProgram, this.game.key, sectorCoords);
-      const sector = this.sectors.find((sector) => sector.key.equals(sectorKey))
+      const [sector] = this.sectors.filter((sector) => sector.key.equals(sectorKey))
       if (sector) {
         return { type: "Success" as const, data: sector }; ;
       } else {
@@ -494,6 +526,15 @@ export class SageGame {
         return { type: "Success" as const, data: planets };
       } else {
         return { type: "PlanetsNotFound" as const };
+      }
+    }
+
+    getPlanetByKey(planetKey: PublicKey) {
+      const planet = this.planets.find((planet) => planet.key.equals(planetKey))
+      if (planet) {
+        return { type: "Success" as const, data: planet }; ;
+      } else {
+        return { type: "PlanetNotFound" as const };
       }
     }
     /** END PLANETS */
@@ -780,23 +821,22 @@ export class SageGame {
       return this.resourcesMint[resourceName];
     }
 
-    getMineItemAndResourceByName(resourceName: ResourceName) {
+    getMineItemAndResourceByNameAndPlanetKey(resourceName: ResourceName, planetKey: PublicKey) {
       const mint = this.resourcesMint[resourceName];
-      return this.getMineItemAndResourceByMint(mint)
+      return this.getMineItemAndResourceByMintAndPlanetKey(mint, planetKey)
     }
 
-    private getMineItemAndResourceByMint(mint: PublicKey) {
+    private getMineItemAndResourceByMintAndPlanetKey(mint: PublicKey, planetKey: PublicKey) {
       const [mineItem] = this.mineItems.filter((mineItem) => mineItem.data.mint.equals(mint));
-      const [resource] = this.resources.filter((resource) => resource.data.mineItem.equals(mineItem.key));
+      const [resource] = this.resources.filter((resource) => resource.data.mineItem.equals(mineItem.key) && resource.data.location.equals(planetKey));
 
       return { mineItem, resource } as MinableResource;
     }
     /** END RESOURCES MINT */
 
+
     // SurveyDataUnitTracker Account
     // ...
-
-    // Starbase Player Account
 
 
     /** PLAYER PROFILE */
@@ -920,15 +960,22 @@ export class SageGame {
       }
     }
 
+    // !! we can just return the balance (also if the ATA doesn't exist) thanks to createTokenAccountIdempotent instruction
     async getTokenAccountBalance(tokenAccounKey: PublicKey,) {
-      const tokenAccount = await this.connection.getTokenAccountBalance(
-        tokenAccounKey,
-        'confirmed',
-      );
-      if (tokenAccount.value.uiAmount == null) {
-        return { type: "TokenAccountShouldBeDefined" as const };
-      } else {
-        return { type: "Success" as const, data: tokenAccount.value.uiAmount };
+      try {
+        const tokenAccount = await this.connection.getTokenAccountBalance(
+          tokenAccounKey,
+          'confirmed',
+        );
+        if (tokenAccount.value.uiAmount == null) {
+          //return { type: "TokenAccountShouldBeDefined" as const };
+          return 0;
+        } else {
+          // return { type: "Success" as const, data: tokenAccount.value.uiAmount };
+          return tokenAccount.value.uiAmount
+        }
+      } catch (e) {
+        return 0;
       }
     };
 
@@ -970,6 +1017,10 @@ export class SageGame {
     calculateDistanceBySector(a: Sector, b: Sector) {
       return calculateDistance(a.data.coordinates as [BN, BN], b.data.coordinates as [BN, BN]);
     }
+
+    getAssociatedTokenAddressSync(owner: PublicKey, mint: PublicKey) {
+      return getAssociatedTokenAddressSync(mint, owner, true)
+    }
     /** END HELPERS */
 
 
@@ -1002,10 +1053,10 @@ export class SageGame {
       );
       const tokenBalance = await this.getTokenAccountBalance(fromATA);
 
-      if (tokenBalance.type !== "Success" || tokenBalance.data === 0) 
+      if (tokenBalance === 0) 
         return { type: "NoEnoughTokensToPerformLabsAction" as const };
 
-      return tokenBalance
+      return { type: "Success" as const, data: tokenBalance };
     }
 
     async buildDynamicTransactions(instructions: InstructionReturn[], fee: boolean) {
@@ -1015,9 +1066,25 @@ export class SageGame {
         instructions.push(this.ixBurnQuattrinoToken());
       }
 
+      // TODO: add extra fee choosen by user (low, medium, high)
       const getFee = async (writableAccounts: PublicKey[], connection: Connection): Promise<number> => {
+        if (this.customPriorityFee.level === PriorityLevel.None) return 0;
+        
+        const customPriorityFee = 
+          this.customPriorityFee.level === PriorityLevel.Default ? PriorityLevelValue.Default :
+          this.customPriorityFee.level === PriorityLevel.Low ? PriorityLevelValue.Low :
+          this.customPriorityFee.level === PriorityLevel.Medium ? PriorityLevelValue.Medium :
+          this.customPriorityFee.level === PriorityLevel.High ? PriorityLevelValue.High :
+          (
+            this.customPriorityFee.level === PriorityLevel.Custom && 
+            this.customPriorityFee.value &&
+            this.customPriorityFee.value < PriorityLevelValue.MaxCustom
+          ) ? this.customPriorityFee.value : 
+          0;
+
         const rpf = await connection.getRecentPrioritizationFees({ lockedWritableAccounts: writableAccounts})
-        const priorityFee = Math.round(rpf.map(item => item.prioritizationFee).reduce((acc, fee) => acc + fee, 0) / rpf.length);
+        const priorityFee = 
+          Math.round(rpf.map(item => item.prioritizationFee).reduce((acc, fee) => acc + fee, 0) / rpf.length) + customPriorityFee;
         console.log("Priority Fee:", priorityFee / 1000000, "Lamports per CU");
         return priorityFee;
       };

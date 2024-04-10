@@ -1,18 +1,8 @@
 import inquirer from "inquirer";
+import { MovementType, movements } from "../../common/constants";
 
-export const setMovementTypeV2 = async (): Promise<string> => {
-  const movements = [
-    {
-      name: "Subwarp",
-      value: "subwarp",
-    },
-    {
-      name: "Warp",
-      value: "warp",
-    },
-  ];
-
-  const answer = await inquirer.prompt([
+export const setMovementTypeV2 = async () => {
+  return inquirer.prompt<{ movement: MovementType }>([
     {
       type: "list",
       name: "movement",
@@ -20,8 +10,4 @@ export const setMovementTypeV2 = async (): Promise<string> => {
       choices: movements,
     },
   ]);
-
-  const movement = answer.movement;
-
-  return movement;
 };

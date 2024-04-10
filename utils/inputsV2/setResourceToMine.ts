@@ -20,7 +20,6 @@ export const setResourceToMine = async (
 
     for (const resource of resources.data) {
         const mineItem = fleet.getSageGame().getMineItemByKey(resource.data.mineItem);
-        
         if (mineItem.type !== "Success") {
             minableResources.length = 0;
             break;
@@ -36,7 +35,7 @@ export const setResourceToMine = async (
         return { type: "NoMinableResources" as const };
     }
 
-    const resourceToMine = await inquirer.prompt([
+    const { resourceToMine } = await inquirer.prompt<{ resourceToMine: MinableResource }>([
       {
         type: "list",
         name: "resourceToMine",
@@ -48,5 +47,5 @@ export const setResourceToMine = async (
       },
     ]);
   
-    return { type: "Success" as const, data: resourceToMine.resourceToMine }
+    return { type: "Success" as const, data: resourceToMine }
   };

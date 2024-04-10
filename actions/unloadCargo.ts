@@ -14,6 +14,12 @@ export const unloadCargo = async (
   let ix = await fleet.ixUnloadCargo(resourceName, cargoPodType, amount);
 
   switch (ix.type) {
+    case "FleetCargoPodTokenAccountNotFound":
+      console.log("Fleet cargo pod token account not found");
+      return;
+    case "NoResourcesToWithdraw":
+      console.log("No resources to withdraw");
+      return;
     default: {
       if (ix.type !== "Success") {
         throw new Error(ix.type);

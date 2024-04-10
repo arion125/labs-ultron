@@ -4,6 +4,7 @@ import { LabsAction } from "../../common/types";
 import { sendNotification } from "./sendNotification";
 import { wait } from "./wait";
 
+// TODO: If an action fails, go to the next action until find the correct one (in some cases)
 // If a SAGE Labs action fails, send a notification and retry the same action every minute
 export async function actionWrapper<R, A extends any[]>(
   func: LabsAction<R, A>,
