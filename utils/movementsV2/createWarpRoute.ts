@@ -30,7 +30,7 @@ export const createWarpRoute = (fleet: SageFleet, sector1: Sector, sector2: Sect
         }
     })
 
-    if (criticalPoints.length - 1 !== sectorRoute.length) return { type: "BrokenWarpRoute" as const };
+    if (criticalPoints.length - 1 !== sectorRoute.length) return { type: "BrokenRoute" as const };
 
     return { type: "Success" as const, data: sectorRoute };
 };

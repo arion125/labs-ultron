@@ -10,7 +10,7 @@ export const setResourceToMine = async (
   ) => {
     const planet = fleet.getSageGame().getPlanetsBySector(sector, PlanetType.AsteroidBelt);
     if (planet.type !== "Success") return planet;
-
+    
     const asteroid = planet.data[0]
 
     const resources = fleet.getSageGame().getResourcesByPlanet(asteroid);

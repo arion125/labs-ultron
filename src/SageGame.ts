@@ -254,6 +254,15 @@ export class SageGame {
       return this.resourcesMint;
     }
 
+    getResourcesMintNameByMint(mint: PublicKey) {
+      for (const [key, publicKey] of Object.entries(this.resourcesMint)) {
+        if (publicKey.equals(mint)) {
+          return { type: "Success" as const, data: key as ResourceName}
+        }
+      }
+      return { type: "ResourceNotFound" as const };
+    }
+
     /** GAME AND GAME STATE */
     // Game And Game State Accounts - fetch only one per game
     private async getGameAndGameStateAccounts() {
