@@ -16,11 +16,11 @@ export const loadCargo = async (
   switch (ix.type) {
     case "FleetCargoPodIsFull":
       console.log("Your fleet cargo is full");
-      return;
+      return { type: "FleetCargoPodIsFull" as const };
 
     case "StarbaseCargoIsEmpty":
       console.log("Starbase cargo is empty");
-      return;
+      return { type: "StarbaseCargoIsEmpty" as const };
     default:
       if (ix.type !== "Success") {
         throw new Error(ix.type);
@@ -30,11 +30,13 @@ export const loadCargo = async (
   const txs = await fleet.getSageGame().buildDynamicTransactions(ix.ixs, false);
   if (txs.type !== "Success") {
     console.log("Failed to build dynamic transactions");
-    return;
+    return { type: "FailedToBuildDynamicTransactions" as const };
   }
 
   await fleet.getSageGame().sendDynamicTransactions(txs.data);
 
   console.log("Fleet cargo loaded!");
   await fleet.getSageGame().getQuattrinoBalance();
+
+  return { type: "Success" as const }
 };

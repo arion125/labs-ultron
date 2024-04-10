@@ -16,10 +16,10 @@ export const unloadCargo = async (
   switch (ix.type) {
     case "FleetCargoPodTokenAccountNotFound":
       console.log("Fleet cargo pod token account not found");
-      return;
+      return { type: "FleetCargoPodTokenAccountNotFound" as const };
     case "NoResourcesToWithdraw":
       console.log("No resources to withdraw");
-      return;
+      return { type: "NoResourcesToWithdraw" as const };
     default: {
       if (ix.type !== "Success") {
         throw new Error(ix.type);
@@ -30,11 +30,13 @@ export const unloadCargo = async (
   const txs = await fleet.getSageGame().buildDynamicTransactions(ix.ixs, false);
   if (txs.type !== "Success") {
     console.log("Failed to build dynamic transactions");
-    return;
+    return { type: "FailedToBuildDynamicTransactions" as const };
   }
 
   await fleet.getSageGame().sendDynamicTransactions(txs.data);
 
   console.log("Fleet cargo unloaded!");
   await fleet.getSageGame().getQuattrinoBalance();
+
+  return { type: "Success" as const };
 };

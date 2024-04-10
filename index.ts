@@ -20,10 +20,12 @@ import { setupProfileData } from "./utils/inputs/setupProfileData";
 /* import { SectorCoordinates } from "./common/types";
 import { SagePlayer } from "./src/SagePlayer"; */
 import { miningV2 } from "./scripts/miningV2";
+import { cargoV2 } from "./scripts/cargoV2";
 import { PlanetType } from "@staratlas/sage";
 import { setPriority } from "./utils/inputsV2/setPriority";
 import { PriorityLevel } from "./common/constants";
 import { setCustomPriority } from "./utils/inputsV2/setCustomPriority";
+import { cargoMiningV2 } from "./scripts/cargoMiningV2";
 // import { SageFleet } from "./src/SageFleet";
 
 /* const main = async () => {
@@ -166,25 +168,35 @@ const test = async () => {
   console.log(userPoints.data) */
 
   // 3. Play with mining
-  const mining = await miningV2(player);
+  /* const mining = await miningV2(player);
   if (mining.type !== "Success") {
     console.log("Mining failed.", mining.type)
     return;
-  }
+  } */
 
   // 4. Play with cargo
+  /* const cargo = await cargoV2(player);
+  if (cargo.type !== "Success") {
+    console.log("Cargo failed.", cargo.type)
+    return;
+  } */
+
+  // 5. Play with cargo mining
+  const cargoMining = await cargoMiningV2(player);
+  if (cargoMining.type !== "Success") {
+    console.log("Cargo mining failed.", cargoMining.type)
+    return;
+  }
+
+  // 6. Play with scanning
   // ...
 
 
-  // 5. Play with scanning
+  // 7. Play with crafting (SageCrafting.ts)
   // ...
 
 
-  // 6. Play with crafting (SageCrafting.ts)
-  // ...
-
-
-  // 7. Play with galactic marketplace (GalacticMarketplace.ts)
+  // 8. Play with galactic marketplace (GalacticMarketplace.ts)
   // ...
 
   /* const data = await sage.getPlanets()
