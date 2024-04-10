@@ -98,7 +98,7 @@ export const scanV2 = async (
       return fleet.data.calculateSubwarpFuelBurnWithDistance(sectorsDistanceBack);
     })() : 0;
   
-  const fuelNeeded = goFuelNeeded + backFuelNeeded;
+  const fuelNeeded = goFuelNeeded + backFuelNeeded + 10000;
   console.log("Fuel needed:", fuelNeeded);
 
   const fuelTank = await fleet.data.getCurrentCargoDataByType(CargoPodType.FuelTank);

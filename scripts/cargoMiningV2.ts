@@ -116,7 +116,7 @@ export const cargoMiningV2 = async (
       return fleet.data.calculateSubwarpFuelBurnWithDistance(sectorsDistanceBack);
     })() : 0;
   
-  const fuelNeeded = miningSessionData.fuelNeeded + goFuelNeeded + backFuelNeeded;
+  const fuelNeeded = miningSessionData.fuelNeeded + goFuelNeeded + backFuelNeeded + 10000;
   console.log("Fuel needed:", fuelNeeded);
 
   const fuelTank = await fleet.data.getCurrentCargoDataByType(CargoPodType.FuelTank);

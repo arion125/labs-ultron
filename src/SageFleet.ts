@@ -17,6 +17,7 @@ import { UserPoints } from "@staratlas/points";
   amount: BN;
 } */
 
+// !! the best way to reduce error handling is to handle errors at instance creation level
 // TODO: add cargo type?
 export type LoadedResources = {
     mint: PublicKey;
@@ -73,11 +74,7 @@ export class SageFleet {
       if (ships.type === "ShipsNotFound") throw new Error(ships.type);
 
       flt.ships = ships.data;
-
-      ships.data.forEach((ship) => { 
-        const stats = ship.data.stats.miscStats as ShipStats 
-        if (stats.miscStats.scanCost > 0) flt.onlyDataRunner = false;
-      })
+      flt.onlyDataRunner = flt.stats.miscStats.scanCost === 0;
 
       return flt;
     }
@@ -1106,7 +1103,7 @@ export class SageFleet {
 
     async ixWarpToSector(sector: Sector, fuelNeeded: BN) {
       const ixs: InstructionReturn[] = [];
-      
+
       const fuelMint = this.getSageGame().getResourceMintByName(ResourceName.Fuel);
       
       const fuelTank = await this.getCurrentCargoDataByType(CargoPodType.FuelTank);

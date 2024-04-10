@@ -107,7 +107,7 @@ export const cargoV2 = async (
       return fleet.data.calculateSubwarpFuelBurnWithDistance(sectorsDistanceBack);
     })() : 0;
   
-  const fuelNeeded = goFuelNeeded + backFuelNeeded;
+  const fuelNeeded = goFuelNeeded + backFuelNeeded + 10000;
   console.log("Fuel needed:", fuelNeeded);
 
   const fuelTank = await fleet.data.getCurrentCargoDataByType(CargoPodType.FuelTank);
@@ -168,7 +168,7 @@ export const cargoV2 = async (
     if (movementBack.movement === MovementType.Warp) {
       for (let i = 1; i < backRoute.data.length; i++) {
         const sectorTo = backRoute.data[i];
-        await actionWrapper(warpToSector, fleet.data, sectorTo, true);
+        await actionWrapper(warpToSector, fleet.data, sectorTo, false);
       }   
     }
 
