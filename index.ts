@@ -176,11 +176,11 @@ const test = async () => {
   } */
 
   // 4. Play with cargo
-  const cargo = await cargoV2(player);
+  /* const cargo = await cargoV2(player);
   if (cargo.type !== "Success") {
     console.log("Cargo failed.", cargo.type)
     return;
-  }
+  } */
 
   // 5. Play with cargo mining
   /* const cargoMining = await cargoMiningV2(player);
@@ -190,11 +190,11 @@ const test = async () => {
   } */
 
   // 6. Play with scanning
-  /* const scan = await scanV2(player);
+  const scan = await scanV2(player);
   if (scan.type !== "Success") {
     console.log("Scan failed.", scan.type)
     return;
-  } */
+  }
 
 
   // 7. Play with crafting (SageCrafting.ts)

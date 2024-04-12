@@ -11,13 +11,27 @@ export class SagePlayer {
     private sageGame: SageGame;
     private playerProfile!: PlayerProfile;
 
+    private key: PublicKey;
+    private userPoints!: UserPoints[];
+
     private constructor(sageGame: SageGame, playerProfile: PlayerProfile) {
         this.sageGame = sageGame;
         this.playerProfile = playerProfile;
+        this.key = playerProfile.key;
     }
 
     static async init(sageGame: SageGame, playerProfile: PlayerProfile): Promise<SagePlayer> {
-        return new SagePlayer(sageGame, playerProfile);
+        const player = new SagePlayer(sageGame, playerProfile);
+
+        const [userPoints] = await Promise.all([
+          player.getUserPointsAsync()
+        ]);
+
+        if (userPoints.type !== "Success") throw new Error(userPoints.type);
+
+        player.userPoints = userPoints.data;
+
+        return player;
     }
 
     getPlayerProfile() {
@@ -127,7 +141,7 @@ export class SagePlayer {
     }
 
     /** POINTS */
-    async getUserPointsAsync() {
+    private async getUserPointsAsync() {
       try {
         const fetchUserPoints = await readAllFromRPC(
           this.sageGame.getProvider().connection,
@@ -155,4 +169,89 @@ export class SagePlayer {
         return { type: "UserPointsNotFound" as const };
       }
     }
+
+    getMiningXpAccount() {
+      return this.userPoints.filter((account) => 
+        account.data.pointCategory.equals(this.sageGame.getGamePoints().miningXpCategory.category)
+      )[0];
+    }
+
+    getMiningXpKey() {
+      return UserPoints.findAddress(
+        this.sageGame.getPointsProgram(), 
+        this.sageGame.getGamePoints().miningXpCategory.category, 
+        this.playerProfile.key
+      )[0];
+    }
+
+    getPilotXpAccount() {
+      return this.userPoints.filter((account) => 
+        account.data.pointCategory.equals(this.sageGame.getGamePoints().pilotXpCategory.category)
+      )[0];
+    }
+
+    getPilotXpKey() {
+      return UserPoints.findAddress(
+        this.sageGame.getPointsProgram(), 
+        this.sageGame.getGamePoints().pilotXpCategory.category, 
+        this.playerProfile.key
+      )[0];
+    }
+
+    getCouncilRankXpAccount() {
+      return this.userPoints.filter((account) => 
+        account.data.pointCategory.equals(this.sageGame.getGamePoints().councilRankXpCategory.category)
+      )[0];
+    }
+
+    getCouncilRankXpKey() {
+      return UserPoints.findAddress(
+        this.sageGame.getPointsProgram(), 
+        this.sageGame.getGamePoints().councilRankXpCategory.category, 
+        this.playerProfile.key
+      )[0];
+    }
+
+    getCraftingXpAccount() {
+      return this.userPoints.filter((account) => 
+        account.data.pointCategory.equals(this.sageGame.getGamePoints().craftingXpCategory.category)
+      )[0];
+    }
+
+    getCraftingXpKey() {
+      return UserPoints.findAddress(
+        this.sageGame.getPointsProgram(), 
+        this.sageGame.getGamePoints().craftingXpCategory.category, 
+        this.playerProfile.key
+      )[0];
+    }
+
+    getDataRunningXpAccount() {
+      return this.userPoints.filter((account) => 
+        account.data.pointCategory.equals(this.sageGame.getGamePoints().dataRunningXpCategory.category)
+      )[0];
+    }
+
+    getDataRunningXpKey() {
+      return UserPoints.findAddress(
+        this.sageGame.getPointsProgram(), 
+        this.sageGame.getGamePoints().dataRunningXpCategory.category, 
+        this.playerProfile.key
+      )[0];
+    }
+
+    getLpXpAccount() {
+      return this.userPoints.filter((account) => 
+        account.data.pointCategory.equals(this.sageGame.getGamePoints().lpCategory.category)
+      )[0];
+    }
+
+    getLpXpKey() {
+      return UserPoints.findAddress(
+        this.sageGame.getPointsProgram(), 
+        this.sageGame.getGamePoints().lpCategory.category, 
+        this.playerProfile.key
+      )[0];
+    }
+    /** END POINTS */
 }

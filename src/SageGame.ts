@@ -11,8 +11,9 @@ import { SectorCoordinates } from "../common/types";
 import { AsyncSigner, byteArrayToString, getParsedTokenAccountsByOwner, createAssociatedTokenAccountIdempotent, keypairToAsyncSigner, sendTransaction, buildOptimalDynamicTransactions, TransactionReturn, getSimulationUnits } from "@staratlas/data-source";
 import { createBurnInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { CustomPriorityFee, PriorityLevel, PriorityLevelValue, quattrinoTokenPubkey } from "../common/constants";
-import { PointsIDLProgram, POINTS_IDL, PointsCategory,  } from "@staratlas/points"
+import { PointsIDLProgram, POINTS_IDL, PointsCategory } from "@staratlas/points"
 import bs58 from "bs58";
+import { SageFleet } from "./SageFleet";
 
 export enum ResourceName {
   Food = "Food",
