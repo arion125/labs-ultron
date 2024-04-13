@@ -52,21 +52,27 @@ export const miningV2 = async (
   // calc fuel, ammo and food needed
   const miningSessionData = fleet.data.getTimeAndNeededResourcesToFullCargoInMining(resourceToMine.data);
 
-  // 5. set fleet movement type (->)
-  const movementGo = await setMovementTypeV2()
+  let movementGo, movementBack;
+  if (!isSameSector) {
+    // 5. set fleet movement type (->)
+    movementGo = await setMovementTypeV2()
 
-  const [goRoute, goFuelNeeded] = fleet.data.calculateRouteToSectorAndFuelNeededByMovement(
-    movementGo.movement, 
+    // 6. set fleet movement type (<-) 
+    movementBack = await setMovementTypeV2()
+  }
+
+  // 5 & 6. calculate routes and fuel needed
+  const [goRoute, goFuelNeeded] = fleet.data.calculateRouteToSector(
     fleetCurrentSector, 
-    sector.data);
+    sector.data,
+    movementGo?.movement,
+  );
   
-  // 6. set fleet movement type (<-) 
-  const movementBack = await setMovementTypeV2()
-
-  const [backRoute, backFuelNeeded] = fleet.data.calculateRouteToSectorAndFuelNeededByMovement(
-    movementGo.movement, 
+  const [backRoute, backFuelNeeded] = fleet.data.calculateRouteToSector(
     sector.data, 
-    fleetCurrentSector);
+    fleetCurrentSector,
+    movementBack?.movement,
+  );
   
   const fuelNeeded = miningSessionData.fuelNeeded + goFuelNeeded + backFuelNeeded + 10000;
   console.log("Fuel needed:", fuelNeeded);
@@ -103,16 +109,16 @@ export const miningV2 = async (
     await actionWrapper(undockFromStarbase, fleet.data);
 
     // 5. move to sector (->)
-    if (movementGo.movement === MovementType.Warp) {
+    if (!isSameSector && movementGo && movementGo.movement === MovementType.Warp) {
       for (let i = 1; i < goRoute.length; i++) {
         const sectorTo = goRoute[i];
-        await actionWrapper(warpToSector, fleet.data, sectorTo, false);
+        await actionWrapper(warpToSector, fleet.data, sectorTo, goFuelNeeded, false);
       }   
     }
 
-    if (movementGo.movement === MovementType.Subwarp) {
+    if (!isSameSector && movementGo && movementGo.movement === MovementType.Subwarp) {
       const sectorTo = goRoute[1];
-      await actionWrapper(subwarpToSector, fleet.data, sectorTo);
+      await actionWrapper(subwarpToSector, fleet.data, sectorTo, goFuelNeeded);
     }
 
     // 6. start mining
@@ -122,16 +128,16 @@ export const miningV2 = async (
     await actionWrapper(stopMining, fleet.data, resourcToMineName.data);
 
     // 8. move to sector (<-)
-    if (movementBack.movement === MovementType.Warp) {
+    if (!isSameSector && movementBack && movementBack.movement === MovementType.Warp) {
       for (let i = 1; i < backRoute.length; i++) {
         const sectorTo = backRoute[i];
-        await actionWrapper(warpToSector, fleet.data, sectorTo, true);
+        await actionWrapper(warpToSector, fleet.data, sectorTo, backFuelNeeded, true);
       }   
     }
 
-    if (movementBack.movement === MovementType.Subwarp) {
+    if (!isSameSector && movementBack && movementBack.movement === MovementType.Subwarp) {
       const sectorTo = backRoute[i];
-      await actionWrapper(subwarpToSector, fleet.data, sectorTo);
+      await actionWrapper(subwarpToSector, fleet.data, sectorTo, backFuelNeeded);
     }
 
     // 9. dock to starbase

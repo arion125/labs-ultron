@@ -52,18 +52,20 @@ export const cargoV2 = async (
   // 5. set fleet movement type (->)
   const movementGo = await setMovementTypeV2()
 
-  const [goRoute, goFuelNeeded] = fleet.data.calculateRouteToSectorAndFuelNeededByMovement(
-    movementGo.movement, 
+  const [goRoute, goFuelNeeded] = fleet.data.calculateRouteToSector(
     fleetCurrentSector, 
-    sector.data);
+    sector.data,
+    movementGo.movement
+  );
   
   // 6. set fleet movement type (<-) 
   const movementBack = await setMovementTypeV2()
 
-  const [backRoute, backFuelNeeded] = fleet.data.calculateRouteToSectorAndFuelNeededByMovement(
-    movementGo.movement, 
+  const [backRoute, backFuelNeeded] = fleet.data.calculateRouteToSector(
     sector.data, 
-    fleetCurrentSector);
+    fleetCurrentSector,
+    movementBack.movement
+  );
   
   const fuelNeeded = goFuelNeeded + backFuelNeeded + 10000;
   console.log("Fuel needed:", fuelNeeded);
@@ -93,13 +95,13 @@ export const cargoV2 = async (
     if (movementGo.movement === MovementType.Warp) {
       for (let i = 1; i < goRoute.length; i++) {
         const sectorTo = goRoute[i];
-        await actionWrapper(warpToSector, fleet.data, sectorTo, false);
+        await actionWrapper(warpToSector, fleet.data, sectorTo, goFuelNeeded, false);
       }   
     }
 
     if (movementGo.movement === MovementType.Subwarp) {
       const sectorTo = goRoute[1];
-      await actionWrapper(subwarpToSector, fleet.data, sectorTo);
+      await actionWrapper(subwarpToSector, fleet.data, sectorTo, goFuelNeeded);
     }
 
     // 6. dock to starbase
@@ -124,13 +126,13 @@ export const cargoV2 = async (
     if (movementBack.movement === MovementType.Warp) {
       for (let i = 1; i < backRoute.length; i++) {
         const sectorTo = backRoute[i];
-        await actionWrapper(warpToSector, fleet.data, sectorTo, false);
+        await actionWrapper(warpToSector, fleet.data, sectorTo, backFuelNeeded, false);
       }   
     }
 
     if (movementBack.movement === MovementType.Subwarp) {
       const sectorTo = backRoute[i];
-      await actionWrapper(subwarpToSector, fleet.data, sectorTo);
+      await actionWrapper(subwarpToSector, fleet.data, sectorTo, backFuelNeeded);
     }
 
     // 11. dock to starbase

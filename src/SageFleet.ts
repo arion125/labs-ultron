@@ -146,6 +146,7 @@ export class SageFleet {
         return this.onlyDataRunner;
     }
 
+    /** CARGO */
     getFuelTank() {
         return this.fuelTank;
     }
@@ -157,6 +158,11 @@ export class SageFleet {
     getCargoHold() {
         return this.cargoHold;
     }
+
+    /* getResourceInCargoHoldByName(resourceName: ResourceName) {
+        return this.cargoHold.loadedResources.filter((item) => item.mint.equals(this.getSageGame().getResourceMintByName(resourceName)))[0];
+    } */
+    /** END CARGO */
 
     private async getShipsAccount() {
       try {
@@ -416,7 +422,9 @@ export class SageFleet {
       return Fleet.calculateSubwarpTime(this.stats, distance);
     }
 
-    calculateRouteToSectorAndFuelNeededByMovement(movement: MovementType, sectorFrom: Sector, sectorTo: Sector): [Sector[], number] {
+    calculateRouteToSector(sectorFrom: Sector, sectorTo: Sector, movement?: MovementType): [Sector[], number] {
+      if (sectorFrom.key.equals(sectorTo.key)) return [[], 0]
+      
       const route = 
         movement === MovementType.Warp ? 
          this.createWarpRoute(sectorFrom, sectorTo) :
@@ -575,10 +583,9 @@ export class SageFleet {
       const ixs: InstructionReturn[] = [];
       const mint = this.getSageGame().getResourceMintByName(resourceName);
 
-      const currentSector = await this.getCurrentSectorAsync();
-      if (currentSector.type !== "Success") return currentSector;
+      const fleetCurrentSector = this.getCurrentSector();
 
-      const currentStarbase = this.getSageGame().getStarbaseBySector(currentSector.data);
+      const currentStarbase = this.getSageGame().getStarbaseBySector(fleetCurrentSector);
       if (currentStarbase.type !== "Success") return currentStarbase;
 
       const starbasePlayerPod = await this.player.getStarbasePlayerPodAsync(currentStarbase.data);
@@ -670,10 +677,9 @@ export class SageFleet {
       const ixs: InstructionReturn[] = [];
       const mint = this.getSageGame().getResourceMintByName(resourceName);
 
-      const currentSector = await this.getCurrentSectorAsync();
-      if (currentSector.type !== "Success") return currentSector;
+      const fleetCurrentSector = this.getCurrentSector();
 
-      const currentStarbase = this.getSageGame().getStarbaseBySector(currentSector.data);
+      const currentStarbase = this.getSageGame().getStarbaseBySector(fleetCurrentSector);
       if (currentStarbase.type !== "Success") return currentStarbase;
 
       const starbasePlayerPod = await this.player.getStarbasePlayerPodAsync(currentStarbase.data);
@@ -749,10 +755,9 @@ export class SageFleet {
 
       const ixs: InstructionReturn[] = [];
 
-      const currentSector = await this.getCurrentSectorAsync();
-      if (currentSector.type !== "Success") return currentSector;
+      const fleetCurrentSector = this.getCurrentSector();
 
-      const currentStarbase = this.getSageGame().getStarbaseBySector(currentSector.data);
+      const currentStarbase = this.getSageGame().getStarbaseBySector(fleetCurrentSector);
       if (currentStarbase.type !== "Success") return currentStarbase;
 
       const starbasePlayerKey = this.player.getStarbasePlayerAddress(currentStarbase.data);
@@ -770,7 +775,7 @@ export class SageFleet {
         ixs.push(ix_0);
       }
 
-      const currentPlanet = this.getSageGame().getPlanetsBySector(currentSector.data, PlanetType.AsteroidBelt);
+      const currentPlanet = this.getSageGame().getPlanetsBySector(fleetCurrentSector, PlanetType.AsteroidBelt);
       if (currentPlanet.type !== "Success") return currentPlanet;
 
       const mineableResource = this.getSageGame().getMineItemAndResourceByNameAndPlanetKey(resourceName, currentPlanet.data[0].key);
@@ -815,10 +820,9 @@ export class SageFleet {
 
       const ixs: InstructionReturn[] = [];
 
-      const currentSector = await this.getCurrentSectorAsync();
-      if (currentSector.type !== "Success") return currentSector;
+      const fleetCurrentSector = this.getCurrentSector();
 
-      const currentStarbase = this.getSageGame().getStarbaseBySector(currentSector.data);
+      const currentStarbase = this.getSageGame().getStarbaseBySector(fleetCurrentSector);
       if (currentStarbase.type !== "Success") return currentStarbase;
 
       if (!this.fleet.state.MineAsteroid)
@@ -933,10 +937,9 @@ export class SageFleet {
 
       const ixs: InstructionReturn[] = [];
 
-      const currentSector = await this.getCurrentSectorAsync();
-      if (currentSector.type !== "Success") return currentSector;
+      const fleetCurrentSector = this.getCurrentSector();
 
-      const currentStarbase = this.getSageGame().getStarbaseBySector(currentSector.data);
+      const currentStarbase = this.getSageGame().getStarbaseBySector(fleetCurrentSector);
       if (currentStarbase.type !== "Success") return currentStarbase;
 
       const starbasePlayerKey = this.player.getStarbasePlayerAddress(currentStarbase.data);
@@ -1007,10 +1010,9 @@ export class SageFleet {
 
       const ixs: InstructionReturn[] = [];
 
-      const currentSector = await this.getCurrentSectorAsync();
-      if (currentSector.type !== "Success") return currentSector;
+      const fleetCurrentSector = this.getCurrentSector();
 
-      const currentStarbase = this.getSageGame().getStarbaseBySector(currentSector.data);
+      const currentStarbase = this.getSageGame().getStarbaseBySector(fleetCurrentSector);
       if (currentStarbase.type !== "Success") return currentStarbase;
 
       const starbasePlayerKey = this.player.getStarbasePlayerAddress(currentStarbase.data);
@@ -1191,19 +1193,27 @@ export class SageFleet {
       
       const ixs: InstructionReturn[] = [];
 
+      const foodMint = this.getSageGame().getResourceMintByName(ResourceName.Food)
       const sduMint = this.getSageGame().getResourceMintByName(ResourceName.Sdu)
 
-      const currentSector = await this.getCurrentSectorAsync();
-      if (currentSector.type !== "Success") return currentSector;
+      const fleetCurrentSector = this.getCurrentSector();
 
       const cargoHold = this.getCargoHold();
 
-      if (cargoHold.fullLoad) return { type: "FleetCargoIsFull" as const }
+      if (this.onlyDataRunner && cargoHold.fullLoad) return { type: "FleetCargoIsFull" as const }
 
-      const [toolInCargoData] = cargoHold.loadedResources.filter((item) => item.mint.equals(sduMint));
-      if (!toolInCargoData) return { type: "FleetCargoPodTokenAccountNotFound" as const };
+      if (!this.onlyDataRunner) {
+        const [foodInCargoData] = cargoHold.loadedResources.filter((item) => item.mint.equals(foodMint));
+        
+        if (!foodInCargoData) 
+          return { type: "FoodNotFound" as const };
 
-      if (!this.onlyDataRunner && toolInCargoData.tokenAccount.amount < this.stats.miscStats.scanCost) return { type: "NoEnoughRepairKits" as const }
+        if (foodInCargoData.tokenAccount.amount < this.stats.miscStats.scanCost) 
+          return { type: "NoEnoughFood" as const }
+
+        if (cargoHold.fullLoad && Number(foodInCargoData.tokenAccount.amount) !== cargoHold.maxCapacity)
+          return { type: "FleetCargoIsFull" as const }
+      }
 
       const sduTokenFrom = getAssociatedTokenAddressSync(
         sduMint,
@@ -1213,6 +1223,12 @@ export class SageFleet {
 
       const sduTokenTo = this.getSageGame().ixCreateAssociatedTokenAccountIdempotent(cargoHold.key, sduMint)
       ixs.push(sduTokenTo.instruction);
+
+      const foodTokenFrom = getAssociatedTokenAddressSync(
+        foodMint,
+        cargoHold.key,
+        true
+      );  
 
       const input: ScanForSurveyDataUnitsInput = { keyIndex: 0 };
 
@@ -1229,16 +1245,16 @@ export class SageFleet {
         this.player.getPlayerProfile().key,
         this.player.getProfileFactionAddress(),
         this.fleet.key,
-        currentSector.data.key,
+        fleetCurrentSector.key,
         this.getSageGame().getSuvreyDataUnitTracker().key,
         cargoHold.key,
-        sduMint,
-        this.getSageGame().getCargoTypeByResourceName(ResourceName.Tool),
+        this.getSageGame().getCargoTypeByResourceName(ResourceName.Sdu),
+        this.getSageGame().getCargoTypeByResourceName(ResourceName.Food),
         this.getSageGame().getCargoStatsDefinition().key,
         sduTokenFrom,
         sduTokenTo.address,
-        toolInCargoData.tokenAccount.address,
-        this.getSageGame().getResourceMintByName(ResourceName.Tool),
+        foodTokenFrom,
+        foodMint,
         this.player.getDataRunningXpKey(),
         this.getSageGame().getGamePoints().dataRunningXpCategory.category,
         this.getSageGame().getGamePoints().dataRunningXpCategory.modifier,

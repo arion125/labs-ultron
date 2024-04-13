@@ -1,8 +1,8 @@
 import { Provider, AnchorProvider, Program, Wallet, BN } from "@staratlas/anchor";
-import { Connection, Finality, Keypair, PublicKey, VersionedTransaction, } from "@solana/web3.js";
+import { Connection, Finality, Keypair, PublicKey, SolanaJSONRPCError, TransactionError, VersionedTransaction, } from "@solana/web3.js";
 import { readFromRPCOrError, readAllFromRPC, stringToByteArray, InstructionReturn } from "@staratlas/data-source";
 import { PLAYER_PROFILE_IDL, PlayerProfileIDLProgram, } from "@staratlas/player-profile";
-import { Fleet, Game, GameState, MineItem, Planet, PlanetType, Points, Resource, SAGE_IDL, SageIDLProgram, Sector, Star, Starbase, SurveyDataUnitTracker, calculateDistance, getCargoPodsByAuthority } from "@staratlas/sage";
+import { Fleet, Game, GameState, MineItem, Planet, PlanetType, Points, Resource, SAGE_IDL, SageIDLProgram, Sector, Star, Starbase, SurveyDataUnitTracker, calculateDistance, getCargoPodsByAuthority, sageErrorMap } from "@staratlas/sage";
 import { ProfileFactionIDLProgram, PROFILE_FACTION_IDL } from "@staratlas/profile-faction";
 import { CargoIDLProgram, CARGO_IDL, CargoStatsDefinition, CargoType } from "@staratlas/cargo";
 import { CraftingIDLProgram, CRAFTING_IDL } from "@staratlas/crafting";
@@ -1055,6 +1055,10 @@ export class SageGame {
     getAssociatedTokenAddressSync(owner: PublicKey, mint: PublicKey) {
       return getAssociatedTokenAddressSync(mint, owner, true)
     }
+
+    private delay(ms: number) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
     /** END HELPERS */
 
 
@@ -1093,14 +1097,13 @@ export class SageGame {
       return { type: "Success" as const, data: tokenBalance };
     }
 
-    async buildDynamicTransactions(instructions: InstructionReturn[], fee: boolean) {
+    private async buildDynamicTransactions(instructions: InstructionReturn[], fee: boolean) {
       if (fee) {
         const tokenBalance = await this.getQuattrinoBalance();
         if (tokenBalance.type !== "Success") return tokenBalance;
         instructions.push(this.ixBurnQuattrinoToken());
       }
 
-      // TODO: add extra fee choosen by user (low, medium, high)
       const getFee = async (writableAccounts: PublicKey[], connection: Connection): Promise<number> => {
         if (this.customPriorityFee.level === PriorityLevel.None) return 0;
         
@@ -1119,13 +1122,13 @@ export class SageGame {
         const rpf = await connection.getRecentPrioritizationFees({ lockedWritableAccounts: writableAccounts})
         const priorityFee = 
           Math.round(rpf.map(item => item.prioritizationFee).reduce((acc, fee) => acc + fee, 0) / rpf.length) + customPriorityFee;
-        console.log("Priority Fee:", priorityFee / 1000000, "Lamports per CU");
+          // console.log("\nPriority Fee:", priorityFee / 1000000, "Lamports per CU");
         return priorityFee;
       };
       
       const getLimit = async (transaction: VersionedTransaction, connection: Connection): Promise<number> => {
-        const unitLimit = await getSimulationUnits(transaction, connection) || 100000;
-        console.log("Unit Limit:", unitLimit, "CU");
+        const unitLimit = (await getSimulationUnits(transaction, connection) || 100000) + 1000;
+        // console.log("\nUnit Limit:", unitLimit, "CU");
         return unitLimit;
       };
 
@@ -1138,36 +1141,154 @@ export class SageGame {
           getLimit,
         }
       )
-      if (txs.isErr()) return { type: "buildOptimalDynamicTransactionsFailed" as const };
-
+      if (txs.isErr()) return { type: "BuildOptimalDynamicTransactionsFailed" as const };
       return { type: "Success" as const, data: txs.value };
     }
 
-    async sendDynamicTransactions(
-      transactions: TransactionReturn[],
-    ) {
+    /* async sendDynamicTransactions(instructions: InstructionReturn[], fee: boolean) {
       const commitment: Finality = "confirmed";
-      const results = await Promise.all(
-        transactions.map((tx) => sendTransaction(tx, this.connection, {
-          commitment,
-          sendOptions: {
-            skipPreflight: false,
-            preflightCommitment: "confirmed",
-          },
-        }))
-      );
+      let attempts = 0;
+      const maxAttempts = 3;
+      const txSignatures: string[] = [];
+      
+      let buildTxs = await this.buildDynamicTransactions(instructions, fee);
+      if (buildTxs.type !== "Success") return buildTxs;
+      
+      let toProcess = buildTxs.data;
+    
+      while (toProcess.length > 0 && attempts < maxAttempts) {
+        const results = await Promise.allSettled(
+          toProcess.map(tx => sendTransaction(tx, this.connection, {
+            commitment,
+            sendOptions: {
+              skipPreflight: false,
+              preflightCommitment: "confirmed",
+            },
+          }))
+        );
+    
+        toProcess = [];
+    
+        console.log(" ");
+        results.forEach(async (result, index) => {
+          if (result.status === "rejected") {
+            let reason;
 
-      const txSignatures = []
+            const errorCode = result.reason && result.reason.message ? parseInt(result.reason.message.split(" ").pop().trim()) : null;
+            if (errorCode && errorCode >= 6000 && result.reason.logs && result.reason.logs.length > 6) {
+              const errorMessage: string[] = result.reason.logs[6].split(".");
+              reason = errorMessage.slice(1, errorMessage.length - 1).map(item => item.trim()).join(" - ");
+            } else {
+              const error = result.reason as SolanaJSONRPCError
+              reason = error.message[error.message.length - 1];
+            }
 
-      for (const result of results) {
-        if (result.value.isOk()) txSignatures.push(result.value.value);
+            console.error(`Transaction #${index} failed on attempt ${attempts + 1} with error: ${reason}`);
+
+            if (buildTxs.type === "Success")
+              toProcess.push(buildTxs.data[index]);
+          } else if (result.status === "fulfilled" && !result.value.value.isOk()) {
+            console.error(`Transaction #${index} completed but not OK, retrying...`);
+            
+            buildTxs = await this.buildDynamicTransactions(instructions, fee);
+            if (buildTxs.type !== "Success") return buildTxs;
+
+            toProcess.push(buildTxs.data[index]);
+          } else if (result.status === "fulfilled" && result.value.value.isOk()){
+            console.log(`Transaction #${index} completed!`);
+            txSignatures.push(result.value.value.value);
+          }
+        });
+    
+        attempts++;
+        if (toProcess.length > 0) {
+          console.log(" ");
+          console.log("Waiting 10 seconds before next attempt...");
+          await this.delay(10000);
+        }
       }
-
-      if (txSignatures.length === transactions.length) 
+    
+      if (txSignatures.length === buildTxs.data.length) {
         return { type: "Success" as const, data: txSignatures };
-        
-      return { type: "PartialSuccess" as const, data: txSignatures };
+      } else {
+        return { type: "SendTransactionsFailure" as const };
       }
+    } */
+    
+    async sendDynamicTransactions(instructions: InstructionReturn[], fee: boolean) {
+      const COMMITMENT: Finality = "confirmed";
+      const MAX_ATTEMPTS = 3;
+      const RETRY_DELAY_MS = 10000;
+      let attempts = 0;
+      const txSignatures: string[] = [];
+      
+      // Build transactions
+      let buildTxs = await this.buildDynamicTransactions(instructions, fee);
+      if (buildTxs.type !== "Success") return buildTxs;
+      
+      let toProcess = buildTxs.data;
+    
+      while (toProcess.length > 0 && attempts < MAX_ATTEMPTS) {
+          // Process transactions
+          const results = await this.sendAllTransactions(toProcess, COMMITMENT);
+
+          toProcess = [];
+
+          // Check transactions results
+          for (let i = 0; i < results.length; i++) {
+              const result = results[i];
+
+              // If transaction failed to send
+              if (result.status === "rejected") {
+                  const reason = this.parseError(result.reason);
+                  console.error(`\nTransaction #${i} failed on attempt ${attempts + 1}: ${reason}`);
+                  toProcess.push(buildTxs.data[i]);
+              } 
+              // If transaction sent, confirmed but not OK
+              else if (result.status === "fulfilled" && !result.value.value.isOk()) {
+                  console.error(`\nTransaction #${i} completed but not OK, rebuilding and retrying...`);
+                  const newBuild = await this.buildDynamicTransactions(instructions, fee);
+                  if (newBuild.type === "Success") {
+                      toProcess.push(newBuild.data[i]);
+                  } else {
+                      console.error(`\nFailed to rebuild transaction #${i}`);
+                  }
+              } 
+              // If transaction sent, confirmed and OK
+              else if (result.status === "fulfilled" && result.value.value.isOk()) {
+                  console.log(`\nTransaction #${i} completed!`);
+                  txSignatures.push(result.value.value.value);
+              }
+    
+          }
+
+          attempts++;
+          if (toProcess.length > 0 && attempts < MAX_ATTEMPTS) {
+              console.log(`\nWaiting ${RETRY_DELAY_MS / 1000} seconds for next attempt...`);
+              await this.delay(RETRY_DELAY_MS);
+          }
+      }
+    
+      return txSignatures.length === buildTxs.data.length
+          ? { type: "Success" as const, data: txSignatures }
+          : { type: "SendTransactionsFailure" as const };
+    }
+
+    private async sendAllTransactions(transactions: TransactionReturn[], commitment: Finality) {
+        return Promise.allSettled(
+            transactions.map(tx => sendTransaction(tx, this.connection, { commitment }))
+        );
+    }
+
+    private parseError(reason: any): string {
+        const errorCode = reason && reason.message ? parseInt(reason.message.split(" ").pop().trim()) : null;
+        if (errorCode && errorCode >= 6000 && reason.logs && reason.logs.length > 6) {
+          const errorMessage: string[] = reason.logs[6].split(".");
+          return errorMessage.slice(1, errorMessage.length - 1).map(item => item.trim()).join(" - ");
+        } else {
+          return reason;
+        }
+    }
     /** END TRANSACTIONS */
     // END CLASS
 }

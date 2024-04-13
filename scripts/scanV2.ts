@@ -42,21 +42,27 @@ export const scanV2 = async (
 
   const isSameSector = fleetCurrentSector.key.equals(sector.data.key);
 
-  // 4. set fleet movement type (->)
-  const movementGo = await setMovementTypeV2()
+  let movementGo, movementBack;
+  if (!isSameSector) {
+    // 4. set fleet movement type (->)
+    movementGo = await setMovementTypeV2()
 
-  const [goRoute, goFuelNeeded] = fleet.data.calculateRouteToSectorAndFuelNeededByMovement(
-    movementGo.movement, 
+    // 5. set fleet movement type (<-) 
+    movementBack = await setMovementTypeV2()
+  }
+
+  // 4 & 5. calculate routes and fuel needed
+  const [goRoute, goFuelNeeded] = fleet.data.calculateRouteToSector(
     fleetCurrentSector, 
-    sector.data);
+    sector.data,
+    movementGo?.movement,
+  );
   
-  // 5. set fleet movement type (<-) 
-  const movementBack = await setMovementTypeV2()
-
-  const [backRoute, backFuelNeeded] = fleet.data.calculateRouteToSectorAndFuelNeededByMovement(
-    movementGo.movement, 
+  const [backRoute, backFuelNeeded] = fleet.data.calculateRouteToSector(
     sector.data, 
-    fleetCurrentSector);
+    fleetCurrentSector,
+    movementBack?.movement,
+  );
   
   const fuelNeeded = goFuelNeeded + backFuelNeeded + 10000;
   console.log("Fuel needed:", fuelNeeded);
@@ -67,49 +73,50 @@ export const scanV2 = async (
 
   // 6. start scan loop
   for (let i = 0; i < cycles; i++) {
-    // 1. load fuel
+    /* // 1. load fuel
     if (fuelTank.loadedAmount < fuelNeeded) {
       await actionWrapper(loadCargo, fleet.data, ResourceName.Fuel, CargoPodType.FuelTank, new BN(MAX_AMOUNT));
     }
 
-    // 2. load tools
+    // 2. load food
     if (!fleet.data.getOnlyDataRunner()) {
-      await actionWrapper(loadCargo, fleet.data, ResourceName.Tool, CargoPodType.CargoHold, new BN(MAX_AMOUNT));
+      await actionWrapper(loadCargo, fleet.data, ResourceName.Food, CargoPodType.CargoHold, new BN(MAX_AMOUNT));
     }
     
     // 3. undock from starbase
-    await actionWrapper(undockFromStarbase, fleet.data);
+    await actionWrapper(undockFromStarbase, fleet.data); */
 
     // 4. move to sector (->)
-    if (movementGo.movement === MovementType.Warp) {
+    if (!isSameSector && movementGo && movementGo.movement === MovementType.Warp) {
       for (let i = 1; i < goRoute.length; i++) {
         const sectorTo = goRoute[i];
-        await actionWrapper(warpToSector, fleet.data, sectorTo, false);
+        await actionWrapper(warpToSector, fleet.data, sectorTo, goFuelNeeded, false);
       }   
     }
 
-    if (movementGo.movement === MovementType.Subwarp) {
+    if (!isSameSector && movementGo && movementGo.movement === MovementType.Subwarp) {
       const sectorTo = goRoute[1];
-      await actionWrapper(subwarpToSector, fleet.data, sectorTo);
+      await actionWrapper(subwarpToSector, fleet.data, sectorTo, goFuelNeeded);
     }
 
     // 6. scan sector
-    for (let i = 1; i < MAX_AMOUNT; i++) {
-      const scan = await actionWrapper(scanSdu, fleet.data, i);
+    for (let i = 1; i < 10; i++) {
+      const scan = await scanSdu(fleet.data, i);
+      if (scan.type === "SendTransactionsFailure") return scan;
       if (scan.type !== "Success") break;
     }
 
     // 10. move to sector (<-)
-    if (movementBack.movement === MovementType.Warp) {
+    if (!isSameSector && movementBack && movementBack.movement === MovementType.Warp) {
       for (let i = 1; i < backRoute.length; i++) {
         const sectorTo = backRoute[i];
-        await actionWrapper(warpToSector, fleet.data, sectorTo, true);
+        await actionWrapper(warpToSector, fleet.data, sectorTo, backFuelNeeded, true);
       }   
     }
 
-    if (movementBack.movement === MovementType.Subwarp) {
+    if (!isSameSector && movementBack && movementBack.movement === MovementType.Subwarp) {
       const sectorTo = backRoute[i];
-      await actionWrapper(subwarpToSector, fleet.data, sectorTo);
+      await actionWrapper(subwarpToSector, fleet.data, sectorTo, backFuelNeeded);
     }
 
     // 11. dock to starbase
@@ -118,7 +125,7 @@ export const scanV2 = async (
     // 12. unload cargo
     await actionWrapper(unloadCargo, fleet.data, ResourceName.Sdu, CargoPodType.CargoHold, new BN(MAX_AMOUNT));
     if (!fleet.data.getOnlyDataRunner()) {
-      await actionWrapper(unloadCargo, fleet.data, ResourceName.Tool, CargoPodType.CargoHold, new BN(MAX_AMOUNT));
+      await actionWrapper(unloadCargo, fleet.data, ResourceName.Food, CargoPodType.CargoHold, new BN(MAX_AMOUNT));
     }
 
     // 13. send notification

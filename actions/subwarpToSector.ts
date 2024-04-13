@@ -8,15 +8,12 @@ import { SageFleet } from "../src/SageFleet";
 export const subwarpToSector = async (
   fleet: SageFleet,
   sector: Sector,
+  fuelNeeded: number,
 ) => {
   console.log(" ");
   console.log(`Start subwarp...`);
 
-  const currentSector = await fleet.getCurrentSectorAsync();
-  if (currentSector.type !== "Success") return currentSector;
-
-  const sectorsDistance = fleet.getSageGame().calculateDistanceBySector(currentSector.data, sector);
-  const fuelNeeded = fleet.calculateSubwarpFuelBurnWithDistance(sectorsDistance);
+  const sectorsDistance = fleet.getSageGame().calculateDistanceBySector(fleet.getCurrentSector(), sector);
 
   const timeToSubwarp = fleet.calculateSubwarpTimeWithDistance(sectorsDistance);
 
@@ -25,13 +22,7 @@ export const subwarpToSector = async (
     throw new Error(ix.type);
   }
 
-  const txs = await fleet.getSageGame().buildDynamicTransactions(ix.ixs, false);
-  if (txs.type !== "Success") {
-    console.log("Failed to build dynamic transactions");
-    return;
-  }
-
-  await fleet.getSageGame().sendDynamicTransactions(txs.data);
+  await fleet.getSageGame().sendDynamicTransactions(ix.ixs, false);
 
   console.log(`Waiting for ${timeToSubwarp} seconds...`);
   await wait(timeToSubwarp);

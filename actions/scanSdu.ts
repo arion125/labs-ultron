@@ -12,8 +12,8 @@ export const scanSdu = async (
     let ix = await fleet.ixScanForSurveyDataUnits();
 
     switch (ix.type) {
-      case "NoEnoughRepairKits":
-        console.log("No enough repair kits");
+      case "NoEnoughFood":
+        console.log("No enough food to scan");
         return ix;
   
       case "FleetCargoIsFull":
@@ -25,17 +25,11 @@ export const scanSdu = async (
         }
     }
     
-    const txs = await fleet.getSageGame().buildDynamicTransactions(ix.ixs, false);
-    if (txs.type !== "Success") {
-        console.log("Failed to build dynamic transactions");
-        return { type: "FailedToBuildDynamicTransactions" as const };
-    }
+    const sdt = await fleet.getSageGame().sendDynamicTransactions(ix.ixs, true);
+    if (sdt.type !== "Success") return sdt;
 
-    // TODO: handle partial success of dynamic transactions
-    await fleet.getSageGame().sendDynamicTransactions(txs.data);
-
-    console.log(`Scan completed!`);
-    console.log(`Waiting Scan Cooldown for ${fleet.getStats().miscStats.scanCoolDown} seconds...`);
+    console.log(`\nScan completed!`);
+    console.log(`\nWaiting Scan Cooldown for ${fleet.getStats().miscStats.scanCoolDown} seconds...`);
     await wait(fleet.getStats().miscStats.scanCoolDown);
 
     return { type: "Success" as const }
