@@ -319,13 +319,13 @@ export class SageFleet {
         if (fleet.type !== "Success") return fleet;
 
         const fuelTank = await this.getCurrentCargoDataByType(CargoPodType.FuelTank);
-        if (fuelTank.type !== "Success") throw new Error(fuelTank.type);
+        if (fuelTank.type !== "Success") return fuelTank;
 
         const ammoBank = await this.getCurrentCargoDataByType(CargoPodType.AmmoBank);
-        if (ammoBank.type !== "Success") throw new Error(ammoBank.type);
+        if (ammoBank.type !== "Success") return ammoBank;
 
         const cargoHold = await this.getCurrentCargoDataByType(CargoPodType.CargoHold);
-        if (cargoHold.type !== "Success") throw new Error(cargoHold.type);
+        if (cargoHold.type !== "Success") return cargoHold;
 
         this.fleet = fleet.data;
 
@@ -578,7 +578,7 @@ export class SageFleet {
     /** CARGO */
     async ixLoadCargo(resourceName: ResourceName, cargoPodType: CargoPodType, amount: BN) {
       const update = await this.update();
-      if (update.type !== "Success") return { type: "FailedToUpdate" as const };
+      if (update.type !== "Success") return { type: "FleetFailedToUpdate" as const };
 
       const ixs: InstructionReturn[] = [];
       const mint = this.getSageGame().getResourceMintByName(resourceName);
@@ -672,7 +672,7 @@ export class SageFleet {
 
     async ixUnloadCargo(resourceName: ResourceName, cargoPodType: CargoPodType, amount: BN) {
       const update = await this.update();
-      if (update.type !== "Success") return { type: "FailedToUpdate" as const };
+      if (update.type !== "Success") return { type: "FleetFailedToUpdate" as const };
 
       const ixs: InstructionReturn[] = [];
       const mint = this.getSageGame().getResourceMintByName(resourceName);
@@ -686,20 +686,6 @@ export class SageFleet {
       if (starbasePlayerPod.type !== "Success") return starbasePlayerPod; 
       // console.log(starbasePlayerPod)
 
-      /* const starbasePlayerPodTokenAccounts = await this.getSageGame().getParsedTokenAccountsByOwner(starbasePlayerPod.data.key);
-      if (starbasePlayerPodTokenAccounts.type !== "Success") return starbasePlayerPodTokenAccounts;
-      // console.log(starbasePlayerPodTokenAccounts)
-
-      const mintStarbaseAta = starbasePlayerPodTokenAccounts.data.find(
-        (tokenAccount) => tokenAccount.mint.equals(mint)
-      );
-
-      let mintStarbaseAtaKey = mintStarbaseAta ? mintStarbaseAta.address : (() => {
-        const ix_0 = this.getSageGame().ixCreateAssociatedTokenAccountIdempotent(starbasePlayerPod.data.key, mint)
-        ixs.push(ix_0.instruction);
-        return ix_0.address;
-      })(); */
-
       const ixStarbasePodMintAta = this.getSageGame().ixCreateAssociatedTokenAccountIdempotent(starbasePlayerPod.data.key, mint)
       ixs.push(ixStarbasePodMintAta.instruction);
 
@@ -710,7 +696,7 @@ export class SageFleet {
       // console.log(cargoHold)
 
       const [fleetCargoPodResourceData] = cargoPod.data.loadedResources.filter((item) => item.mint.equals(mint));
-      if (!fleetCargoPodResourceData) return { type: "FleetCargoPodTokenAccountNotFound" as const };
+      if (!fleetCargoPodResourceData) return { type: "NoResourcesToWithdraw" as const };
       // console.log(mintAta)
 
       // Calc the amount to withdraw
@@ -751,7 +737,7 @@ export class SageFleet {
     /** MINING */
     async ixStartMining(resourceName: ResourceName) {
       const update = await this.update();
-      if (update.type !== "Success") return { type: "FailedToUpdate" as const };
+      if (update.type !== "Success") return { type: "FleetFailedToUpdate" as const };
 
       const ixs: InstructionReturn[] = [];
 
@@ -816,7 +802,7 @@ export class SageFleet {
     // FIX: I often get the 6087 (InvalidTime) error when trying to stop mining. Why?
     async ixStopMining() {
       const update = await this.update();
-      if (update.type !== "Success") return { type: "FailedToUpdate" as const };
+      if (update.type !== "Success") return { type: "FleetFailedToUpdate" as const };
 
       const ixs: InstructionReturn[] = [];
 
@@ -933,7 +919,7 @@ export class SageFleet {
     /** TRAVEL */
     async ixDockToStarbase() {
       const update = await this.update();
-      if (update.type !== "Success") return { type: "FailedToUpdate" as const };
+      if (update.type !== "Success") return { type: "FleetFailedToUpdate" as const };
 
       const ixs: InstructionReturn[] = [];
 
@@ -1006,7 +992,7 @@ export class SageFleet {
 
     async ixUndockFromStarbase() {
       const update = await this.update();
-      if (update.type !== "Success") return { type: "FailedToUpdate" as const };
+      if (update.type !== "Success") return { type: "FleetFailedToUpdate" as const };
 
       const ixs: InstructionReturn[] = [];
 
@@ -1038,7 +1024,7 @@ export class SageFleet {
 
     async ixWarpToSector(sector: Sector, fuelNeeded: BN) {
       const update = await this.update();
-      if (update.type !== "Success") return { type: "FailedToUpdate" as const };
+      if (update.type !== "Success") return { type: "FleetFailedToUpdate" as const };
 
       const ixs: InstructionReturn[] = [];
 
@@ -1100,7 +1086,7 @@ export class SageFleet {
 
     async ixSubwarpToSector(sector: Sector, fuelNeeded: BN) {
       const update = await this.update();
-      if (update.type !== "Success") return { type: "FailedToUpdate" as const };
+      if (update.type !== "Success") return { type: "FleetFailedToUpdate" as const };
 
       const ixs: InstructionReturn[] = [];
       
@@ -1139,14 +1125,14 @@ export class SageFleet {
 
     async ixMovementHandler() { // Warp and Subwarp Handler
       const update = await this.update();
-      if (update.type !== "Success") return { type: "FailedToUpdate" as const };
+      if (update.type !== "Success") return { type: "FleetFailedToUpdate" as const };
 
       const fuelMint = this.getSageGame().getResourceMintByName(ResourceName.Fuel);
       
       const fuelTank = this.getFuelTank();
       
       const [fuelInTankData] = fuelTank.loadedResources.filter((item) => item.mint.equals(fuelMint));
-      if (!fuelInTankData) return { type: "FleetFuelTankIsEmpty" as const };
+      if (!fuelInTankData || Number(fuelInTankData.tokenAccount.amount) === 0) return { type: "FleetFuelTankIsEmpty" as const };
 
       const ix_movement = this.fleet.state.MoveWarp ? 
         [Fleet.moveWarpHandler(
@@ -1189,7 +1175,7 @@ export class SageFleet {
     /** SCANNING */
     async ixScanForSurveyDataUnits() {
       const update = await this.update();
-      if (update.type !== "Success") return { type: "FailedToUpdate" as const };
+      if (update.type !== "Success") return { type: "FleetFailedToUpdate" as const };
       
       const ixs: InstructionReturn[] = [];
 
@@ -1204,11 +1190,8 @@ export class SageFleet {
 
       if (!this.onlyDataRunner) {
         const [foodInCargoData] = cargoHold.loadedResources.filter((item) => item.mint.equals(foodMint));
-        
-        if (!foodInCargoData) 
-          return { type: "FoodNotFound" as const };
 
-        if (foodInCargoData.tokenAccount.amount < this.stats.miscStats.scanCost) 
+        if (!foodInCargoData || foodInCargoData.tokenAccount.amount < this.stats.miscStats.scanCost) 
           return { type: "NoEnoughFood" as const }
 
         if (cargoHold.fullLoad && Number(foodInCargoData.tokenAccount.amount) !== cargoHold.maxCapacity)

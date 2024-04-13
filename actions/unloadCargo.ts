@@ -8,29 +8,35 @@ export const unloadCargo = async (
   cargoPodType: CargoPodType,
   amount: BN
 ) => {
-  console.log(" ");
-  console.log(`Unloading ${amount} ${resourceName} from fleet...`);
+  // action starts
+  console.log(`\nUnloading ${amount} ${resourceName} from fleet...`);
 
-  let ix = await fleet.ixUnloadCargo(resourceName, cargoPodType, amount);
+  // data
+  // ...
 
+  // instruction
+  const ix = await fleet.ixUnloadCargo(resourceName, cargoPodType, amount);
+
+  // issues and errors handling
   switch (ix.type) {
-    case "FleetCargoPodTokenAccountNotFound":
-      console.log("Fleet cargo pod token account not found");
-      return { type: "FleetCargoPodTokenAccountNotFound" as const };
+    // issues that lead to the next action of the main script or the end of the script
     case "NoResourcesToWithdraw":
       console.log("No resources to withdraw");
       return { type: "NoResourcesToWithdraw" as const };
-    default: {
-      if (ix.type !== "Success") {
-        throw new Error(ix.type);
-      }
-    }
+
+    // blocking errors or failures that require retrying the entire action
+    default:
+      if (ix.type !== "Success") throw new Error(ix.type);
   }
 
-  await fleet.getSageGame().sendDynamicTransactions(ix.ixs, false);
+  // build and send transactions
+  const sdt = await fleet.getSageGame().buildAndSendDynamicTransactions(ix.ixs, false);
+  if (sdt.type !== "Success") throw new Error(sdt.type); // retry entire action
 
+  // other
   console.log("Fleet cargo unloaded!");
   await fleet.getSageGame().getQuattrinoBalance();
 
+  // action ends
   return { type: "Success" as const };
 };

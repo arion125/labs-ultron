@@ -3,17 +3,33 @@ import { SageFleet } from "../src/SageFleet";
 export const dockToStarbase = async (
   fleet: SageFleet
 ) => {
-  console.log(" ");
-  console.log("Docking to starbase...");
+  // action starts
+  console.log("\nDocking to starbase...");
 
-  let ix = await fleet.ixDockToStarbase();
-  
-  if (ix.type !== "Success") {
-    throw new Error(ix.type);
+  // data
+  // ...
+
+  // instruction
+  const ix = await fleet.ixDockToStarbase();
+
+  // issues and errors handling
+  switch (ix.type) {
+    // issues that lead to the next action of the main script or the end of the script
+    // ...
+    
+    // blocking errors or failures that require retrying the entire action
+    default:
+      if (ix.type !== "Success") throw new Error(ix.type); // retry entire action
   }
 
-  await fleet.getSageGame().sendDynamicTransactions(ix.ixs, false);
+  // build and send transactions
+  const sdt = await fleet.getSageGame().buildAndSendDynamicTransactions(ix.ixs, false);
+  if (sdt.type !== "Success") throw new Error(sdt.type); // retry entire action
 
+  // other
   console.log("Fleet docked!");
   await fleet.getSageGame().getQuattrinoBalance();
+
+  // action ends
+  return { type: "Success" as const }
 };

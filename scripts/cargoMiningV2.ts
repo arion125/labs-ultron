@@ -127,13 +127,21 @@ export const cargoMiningV2 = async (
     if (!isSameSector && movementGo && movementGo.movement === MovementType.Warp) {
       for (let i = 1; i < goRoute.length; i++) {
         const sectorTo = goRoute[i];
-        await actionWrapper(warpToSector, fleet.data, sectorTo, goFuelNeeded, false);
+        const warp = await actionWrapper(warpToSector, fleet.data, sectorTo, goFuelNeeded, false);
+        if (warp.type !== "Success") {
+          await actionWrapper(dockToStarbase, fleet.data);
+          return warp;
+        }
       }   
     }
 
     if (!isSameSector && movementGo && movementGo.movement === MovementType.Subwarp) {
       const sectorTo = goRoute[1];
-      await actionWrapper(subwarpToSector, fleet.data, sectorTo, goFuelNeeded);
+      const subwarp = await actionWrapper(subwarpToSector, fleet.data, sectorTo, goFuelNeeded);
+      if (subwarp.type !== "Success") {
+        await actionWrapper(dockToStarbase, fleet.data);
+        return subwarp;
+      }
     }
 
     // 7. dock to starbase
@@ -157,13 +165,21 @@ export const cargoMiningV2 = async (
     if (!isSameSector && movementBack && movementBack.movement === MovementType.Warp) {
       for (let i = 1; i < backRoute.length; i++) {
         const sectorTo = backRoute[i];
-        await actionWrapper(warpToSector, fleet.data, sectorTo, backFuelNeeded, true);
+        const warp = await actionWrapper(warpToSector, fleet.data, sectorTo, backFuelNeeded, true);
+        if (warp.type !== "Success") {
+          await actionWrapper(dockToStarbase, fleet.data);
+          return warp;
+        }
       }   
     }
 
     if (!isSameSector && movementBack && movementBack.movement === MovementType.Subwarp) {
       const sectorTo = backRoute[i];
-      await actionWrapper(subwarpToSector, fleet.data, sectorTo, backFuelNeeded);
+      const subwarp = await actionWrapper(subwarpToSector, fleet.data, sectorTo, backFuelNeeded);
+      if (subwarp.type !== "Success") {
+        await actionWrapper(dockToStarbase, fleet.data);
+        return subwarp;
+      }
     }
 
     // 13. dock to starbase

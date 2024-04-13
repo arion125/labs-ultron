@@ -8,21 +8,32 @@ export const warpToSector = async (
   fuelNeeded: number,
   waitCooldown?: boolean
 ) => {
-  console.log(" ");
-  console.log(`Start warp...`);
+  // action starts
+  console.log(`\nStart warp...`);
 
+  // data
   const sectorsDistance = fleet.getSageGame().calculateDistanceBySector(fleet.getCurrentSector(), sector);
-
   const timeToWarp = fleet.calculateWarpTimeWithDistance(sectorsDistance);
 
-  let ix = await fleet.ixWarpToSector(sector, fuelNeeded);
+  // instruction
+  const ix = await fleet.ixWarpToSector(sector, fuelNeeded);
 
-  if (ix.type !== "Success") {
-    throw new Error(ix.type);
+  // issues and errors handling
+  switch (ix.type) {
+    // issues that lead to the next action of the main script or the end of the script
+    case "NoEnoughFuelToWarp":
+      return ix;
+    
+    // blocking errors or failures that require retrying the entire action
+    default:
+      if (ix.type !== "Success") throw new Error(ix.type); // retry entire action
   }
 
-  await fleet.getSageGame().sendDynamicTransactions(ix.ixs, false);
+  // build and send transactions
+  const sdt = await fleet.getSageGame().buildAndSendDynamicTransactions(ix.ixs, false);
+  if (sdt.type !== "Success") throw new Error(sdt.type); // retry entire action
 
+  // other
   console.log(`Waiting for ${timeToWarp} seconds...`);
   await wait(timeToWarp);
   console.log(`Warp completed!`);
@@ -32,4 +43,7 @@ export const warpToSector = async (
   if (waitCooldown) {
     await wait(fleet.getMovementStats().warpCoolDown);
   }
+
+  // action ends
+  return { type: "Success" as const }
 };

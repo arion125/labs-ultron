@@ -1215,9 +1215,9 @@ export class SageGame {
       }
     } */
     
-    async sendDynamicTransactions(instructions: InstructionReturn[], fee: boolean) {
+    async buildAndSendDynamicTransactions(instructions: InstructionReturn[], fee: boolean) {
       const COMMITMENT: Finality = "confirmed";
-      const MAX_ATTEMPTS = 3;
+      const MAX_ATTEMPTS = 10;
       const RETRY_DELAY_MS = 10000;
       let attempts = 0;
       const txSignatures: string[] = [];
@@ -1242,7 +1242,12 @@ export class SageGame {
               if (result.status === "rejected") {
                   const reason = this.parseError(result.reason);
                   console.error(`\nTransaction #${i} failed on attempt ${attempts + 1}: ${reason}`);
-                  toProcess.push(buildTxs.data[i]);
+                  const newBuild = await this.buildDynamicTransactions(instructions, fee);
+                  if (newBuild.type === "Success") {
+                      toProcess.push(newBuild.data[i]);
+                  } else {
+                      console.error(`\nFailed to rebuild transaction #${i}`);
+                  }
               } 
               // If transaction sent, confirmed but not OK
               else if (result.status === "fulfilled" && !result.value.value.isOk()) {

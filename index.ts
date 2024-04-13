@@ -192,10 +192,9 @@ const test = async () => {
   // 6. Play with scanning
   const scan = await scanV2(player);
   if (scan.type !== "Success") {
-    console.log("Scan failed.", scan.type)
+    console.log("\nScan failed.", scan.type)
     return;
   }
-
 
   // 7. Play with crafting (SageCrafting.ts)
   // ...

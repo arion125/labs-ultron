@@ -5,37 +5,41 @@ export const scanSdu = async (
   fleet: SageFleet,
   counter?: number
 ) => {
-  try {
-    console.log(" ");
-    console.log(`${counter}. Scanning sector...`);
+  // action starts
+  console.log(`\n${counter}. Scanning sector...`);
 
-    let ix = await fleet.ixScanForSurveyDataUnits();
+  // data
+  // ...
 
-    switch (ix.type) {
-      case "NoEnoughFood":
-        console.log("No enough food to scan");
-        return ix;
-  
-      case "FleetCargoIsFull":
-        console.log("Your fleet cargo is full");
-        return ix;
-      default:
-        if (ix.type !== "Success") {
-          throw new Error(ix.type);
-        }
-    }
-    
-    const sdt = await fleet.getSageGame().sendDynamicTransactions(ix.ixs, true);
-    if (sdt.type !== "Success") return sdt;
+  // instruction
+  const ix = await fleet.ixScanForSurveyDataUnits();
 
-    console.log(`\nScan completed!`);
-    console.log(`\nWaiting Scan Cooldown for ${fleet.getStats().miscStats.scanCoolDown} seconds...`);
-    await wait(fleet.getStats().miscStats.scanCoolDown);
+  // issues and errors handling
+  switch (ix.type) {
+    // issues that lead to the next action of the main script or the end of the script
+    case "NoEnoughFood":
+      console.log("No enough food to scan");
+      return ix;
 
-    return { type: "Success" as const }
+    case "FleetCargoIsFull":
+      console.log("Your fleet cargo is full");
+      return ix;
 
-  } catch (e) {
-    throw e;
+    // blocking errors or failures that require retrying the entire action
+    default:
+      if (ix.type !== "Success") throw new Error(ix.type); // retry entire action
   }
   
+  // build and send transactions
+  const sdt = await fleet.getSageGame().buildAndSendDynamicTransactions(ix.ixs, false);
+  if (sdt.type !== "Success") throw new Error(sdt.type); // retry entire action
+
+  // other
+  console.log(`\nScan completed!`);
+  console.log(`\nWaiting Scan Cooldown for ${fleet.getStats().miscStats.scanCoolDown} seconds...`);
+  
+  await wait(fleet.getStats().miscStats.scanCoolDown);
+
+  // action ends
+  return { type: "Success" as const } 
 };
