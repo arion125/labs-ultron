@@ -116,6 +116,8 @@ out
 
 .nuxt
 dist
+dist-dev
+dist-prod
 
 # Gatsby files
 
