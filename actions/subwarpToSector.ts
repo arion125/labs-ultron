@@ -1,9 +1,7 @@
-import { PublicKey } from "@solana/web3.js";
-import { SectorCoordinates } from "../common/types";
 import { wait } from "../utils/actions/wait";
-import { calcSectorsDistanceByCoords } from "../utils/sectors/calcSectorsDistanceByCoords";
 import { Sector } from "@staratlas/sage";
 import { SageFleet } from "../src/SageFleet";
+import { BN } from "@staratlas/anchor";
 
 export const subwarpToSector = async (
   fleet: SageFleet,
@@ -18,7 +16,7 @@ export const subwarpToSector = async (
   const timeToSubwarp = fleet.calculateSubwarpTimeWithDistance(sectorsDistance);
 
   // instruction
-  const ix = await fleet.ixSubwarpToSector(sector, fuelNeeded);
+  const ix = await fleet.ixSubwarpToSector(sector, new BN(fuelNeeded));
 
   // issues and errors handling
   switch (ix.type) {
@@ -32,7 +30,7 @@ export const subwarpToSector = async (
   }
 
   // build and send transactions
-  const sdt = await fleet.getSageGame().buildAndSendDynamicTransactions(ix.ixs, false);
+  const sdt = await fleet.getSageGame().buildAndSendDynamicTransactions(ix.ixs, true);
   if (sdt.type !== "Success") throw new Error(sdt.type); // retry entire action
 
   // other

@@ -1,15 +1,14 @@
 import { BN } from "@staratlas/anchor";
 import { Keypair, PublicKey } from "@solana/web3.js";
 import { SectorCoordinates } from "../common/types";
-import { CargoStats, DepositCargoToFleetInput, Fleet, IdleToLoadingBayInput, LoadingBayToIdleInput, MovementStats, PlanetType, ScanForSurveyDataUnitsInput, Sector, Ship, ShipStats, StarbaseCreateCargoPodInput, StarbasePlayer, StartMiningAsteroidInput, StartSubwarpInput, StopMiningAsteroidInput, SurveyDataUnitTracker, WarpToCoordinateInput, WithdrawCargoFromFleetInput } from "@staratlas/sage";
-import { CargoPod } from "@staratlas/cargo";
+import { CargoStats, DepositCargoToFleetInput, Fleet, FleetStateData, IdleToLoadingBayInput, LoadingBayToIdleInput, MovementStats, PlanetType, ScanForSurveyDataUnitsInput, Sector, Ship, ShipStats, StarbaseCreateCargoPodInput, StarbasePlayer, StartMiningAsteroidInput, StartSubwarpInput, StopMiningAsteroidInput, SurveyDataUnitTracker, WarpToCoordinateInput, WithdrawCargoFromFleetInput } from "@staratlas/sage";
+import { CargoPod, CargoType } from "@staratlas/cargo";
 import { InstructionReturn, byteArrayToString, readAllFromRPC } from "@staratlas/data-source";
 import { SagePlayer } from "./SagePlayer";
 import { readFromRPCOrError } from "@staratlas/data-source";
 import { MinableResource, ResourceName } from "./SageGame";
-import { Account, getAssociatedTokenAddressSync } from "@solana/spl-token";
+import { Account, getAccount, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { MAX_AMOUNT, MovementType } from "../common/constants";
-import { UserPoints } from "@staratlas/points";
 
 /* type CargoPodLoadedResource = {
   cargoType: PublicKey;
@@ -18,17 +17,19 @@ import { UserPoints } from "@staratlas/points";
 } */
 
 // !! the best way to reduce error handling is to handle errors at instance creation level
-// TODO: add cargo type?
 export type LoadedResources = {
     mint: PublicKey;
-    tokenAccount: Account;
+    amount: BN;
+    spaceInCargo: BN;
+    cargoTypeKey: PublicKey;
+    tokenAccountKey: PublicKey;
 }
 
 export type CargoPodEnhanced = {
     key: PublicKey;
-    loadedAmount: number;
-    loadedResources: LoadedResources[]; // resource_mint: CargoPodLoadedResource
-    maxCapacity: number;
+    loadedAmount: BN;
+    resources: LoadedResources[]; // resource_mint: CargoPodLoadedResource
+    maxCapacity: BN;
     fullLoad: boolean;
 }
 
@@ -67,6 +68,7 @@ export class SageFleet {
     private ammoBank!: CargoPodEnhanced;
 
     private currentSector!: Sector; // you can get starbase or other data from sector
+    private state: FleetStateData;
     
     private constructor(fleet: Fleet, player: SagePlayer) {
         this.fleet = fleet;
@@ -76,6 +78,7 @@ export class SageFleet {
         this.stats = fleet.data.stats as ShipStats;
         this.movementStats = fleet.data.stats.movementStats as MovementStats;
         this.cargoStats = fleet.data.stats.cargoStats as CargoStats;
+        this.state = fleet.state;
     }
 
     static async init(fleet: Fleet, player: SagePlayer): Promise<SageFleet> {
@@ -146,6 +149,10 @@ export class SageFleet {
         return this.onlyDataRunner;
     }
 
+    getCurrentState() {
+      return this.state;
+    }
+
     /** CARGO */
     getFuelTank() {
         return this.fuelTank;
@@ -185,11 +192,11 @@ export class SageFleet {
       }
     }
 
-    private async getCurrentSectorAsync() { 
-        await this.update();     
+    private async getCurrentSectorAsync() {  
         let coordinates;
-        
+        // console.log("OK1")
         if (this.fleet.state.MoveWarp) {
+          // console.log("OK2")
           coordinates = this.fleet.state.MoveWarp.toSector as SectorCoordinates;
           return await this.getSageGame().getSectorByCoordsAsync(coordinates);
         }
@@ -208,6 +215,7 @@ export class SageFleet {
         }
       
         if (this.fleet.state.Idle) {
+          // console.log("OK3")
           coordinates = this.fleet.state.Idle.sector as SectorCoordinates;
           return await this.getSageGame().getSectorByCoordsAsync(coordinates);
         }
@@ -232,26 +240,20 @@ export class SageFleet {
         return this.currentSector;
     }
 
-    async getCurrentFleetStateAsync() {
-      await this.update();
-      return this.fleet.state;
-    }
-
     private async getCurrentCargoDataByType(type: CargoPodType) {
-      // await this.update();
       const cargoPodType = 
         type === CargoPodType.CargoHold ? this.fleet.data.cargoHold :
         type === CargoPodType.FuelTank ? this.fleet.data.fuelTank :
         type === CargoPodType.AmmoBank ? this.fleet.data.ammoBank :
         null;
 
-      const cargoPodMaxCapacity = 
-        type === CargoPodType.CargoHold ? this.cargoStats.cargoCapacity :
-        type === CargoPodType.FuelTank ? this.cargoStats.fuelCapacity :
-        type === CargoPodType.AmmoBank ? this.cargoStats.ammoCapacity :
-        0;
+      const cargoPodMaxCapacity: BN = 
+        type === CargoPodType.CargoHold ? new BN(this.cargoStats.cargoCapacity) :
+        type === CargoPodType.FuelTank ? new BN(this.cargoStats.fuelCapacity) :
+        type === CargoPodType.AmmoBank ? new BN(this.cargoStats.ammoCapacity) :
+        new BN(0);
 
-      if (!cargoPodType || cargoPodMaxCapacity === 0) return { type: "CargoPodTypeError" as const };
+      if (!cargoPodType || cargoPodMaxCapacity.eq(new BN(0))) return { type: "CargoPodTypeError" as const };
 
       const cargoPod = await this.getCargoPodByKey(cargoPodType);
       if (cargoPod.type !== "Success") return cargoPod;
@@ -262,7 +264,7 @@ export class SageFleet {
         const cpe: CargoPodEnhanced = {
           key: cargoPod.data.key,
           loadedAmount: new BN(0),
-          loadedResources: [],
+          resources: [],
           maxCapacity: cargoPodMaxCapacity,
           fullLoad: false,
         }
@@ -272,25 +274,34 @@ export class SageFleet {
         };
       }
 
-      const loadedResources: LoadedResources[] = [];
-      cargoPodTokenAccounts.data.forEach((cargoPodTokenAccount) => {
-        loadedResources.push({ 
-          mint: cargoPodTokenAccount.mint, 
-          tokenAccount: cargoPodTokenAccount 
-        });
-      });
+      const resources: LoadedResources[] = [];
+
+      for (const cargoPodTokenAccount of cargoPodTokenAccounts.data) {
+          const cargoType = await this.getSageGame().getCargoTypeByMintAsync(cargoPodTokenAccount.mint);
+          if (cargoType.type !== "Success") return cargoType;
+
+          const resourceSpaceInCargoPerUnit = cargoType.data.stats[0] as BN;
+
+          resources.push({ 
+            mint: cargoPodTokenAccount.mint,
+            amount: new BN(cargoPodTokenAccount.amount),
+            spaceInCargo: new BN(cargoPodTokenAccount.amount).mul(resourceSpaceInCargoPerUnit),
+            cargoTypeKey: cargoType.data.key,
+            tokenAccountKey: cargoPodTokenAccount.address,
+          });
+      }
 
       let loadedAmount = new BN(0);
-      loadedResources.forEach((item) => {
-        loadedAmount = loadedAmount.add(new BN(item.tokenAccount.amount));
+      resources.forEach((item) => {
+          loadedAmount = loadedAmount.add(item.spaceInCargo);
       });
-
+      
       const cpe: CargoPodEnhanced = {
         key: cargoPod.data.key,
         loadedAmount,
-        loadedResources,
+        resources,
         maxCapacity: cargoPodMaxCapacity,
-        fullLoad: loadedAmount.eq(new BN(cargoPodMaxCapacity)),
+        fullLoad: loadedAmount.eq(cargoPodMaxCapacity),
       }
 
       return { 
@@ -327,11 +338,18 @@ export class SageFleet {
         const cargoHold = await this.getCurrentCargoDataByType(CargoPodType.CargoHold);
         if (cargoHold.type !== "Success") return cargoHold;
 
+        const currentSector = await this.getCurrentSectorAsync();
+        if (currentSector.type !== "Success") return currentSector; // throw new Error(currentSector.type); ?
+
         this.fleet = fleet.data;
+        this.state = fleet.data.state;
 
         this.fuelTank = fuelTank.data;
         this.ammoBank = ammoBank.data;
         this.cargoHold = cargoHold.data;
+        this.currentSector = currentSector.data;
+
+        await this.getSageGame().delay(1000); // wait one seconds before updating the fleet
 
         return { type: "Success" as const };
     }
@@ -583,59 +601,48 @@ export class SageFleet {
       const ixs: InstructionReturn[] = [];
       const mint = this.getSageGame().getResourceMintByName(resourceName);
 
-      const fleetCurrentSector = this.getCurrentSector();
+      const cargoType = await this.getSageGame().getCargoTypeByMintAsync(mint);
+      if (cargoType.type !== "Success") return cargoType;
 
-      const currentStarbase = this.getSageGame().getStarbaseBySector(fleetCurrentSector);
+      const resourceSpaceInCargoPerUnit = cargoType.data.stats[0] as BN;
+
+      const fleetCurrentSector = await this.getCurrentSectorAsync();
+      if (fleetCurrentSector.type !== "Success") return fleetCurrentSector;
+
+      const currentStarbase = this.getSageGame().getStarbaseBySector(fleetCurrentSector.data);
       if (currentStarbase.type !== "Success") return currentStarbase;
 
       const starbasePlayerPod = await this.player.getStarbasePlayerPodAsync(currentStarbase.data);
       if (starbasePlayerPod.type !== "Success") return starbasePlayerPod; 
       // console.log(starbasePlayerPod)
 
-      /* const starbasePlayerPodTokenAccounts = await this.getSageGame().getParsedTokenAccountsByOwner(starbasePlayerPod.data.key);
-      if (starbasePlayerPodTokenAccounts.type !== "Success") return starbasePlayerPodTokenAccounts;
-      // console.log(starbasePlayerPodTokenAccounts)
-
-      const mintStarbaseAta = starbasePlayerPodTokenAccounts.data.find(
-        (tokenAccount) => tokenAccount.mint.equals(mint)
-      );
-      if (!mintStarbaseAta)
-        return { type: "StarbaseCargoPodTokenAccountNotFound" as const };
-      // console.log(mintStarbaseAta.address.toBase58()) */
-
       const starbasePodMintAta = this.getSageGame().getAssociatedTokenAddressSync(starbasePlayerPod.data.key, mint)
       const starbasePodMintAtaBalance = await this.getSageGame().getTokenAccountBalance(starbasePodMintAta);
+      // console.log(starbasePodMintAtaBalance)
 
-      const cargoPod = await this.getCurrentCargoDataByType(cargoPodType);
-      if (cargoPod.type !== "Success" && cargoPod.type !== "CargoPodIsEmpty") return cargoPod;
-      // console.log(cargoHold)
+      const cargoHold = await this.getCurrentCargoDataByType(cargoPodType);
+      if (cargoHold.type !== "Success" && cargoHold.type !== "CargoPodIsEmpty") return cargoHold;
 
-      /* const mintAta = cargoPod.data.loadedResources.get(mint.toBase58());
-      // console.log(mintAta)
-
-      let mintAtaKey = mintAta ? mintAta.address : (() => {
-        const ix_0 = this.getSageGame().ixCreateAssociatedTokenAccountIdempotent(cargoPod.data.key, mint)
-        ixs.push(ix_0.instruction);
-        return ix_0.address;
-      })(); */
-
-      const ixFleetCargoPodMintAta = this.getSageGame().ixCreateAssociatedTokenAccountIdempotent(cargoPod.data.key, mint)
-      ixs.push(ixFleetCargoPodMintAta.instruction);
-
-      // console.log(mintAtaKey)
-      // console.log(cargoPod.data.loadedAmount)
-      // console.log(cargoPod.data.maxCapacity)
+      const ixFleetCargoHoldMintAta = this.getSageGame().ixCreateAssociatedTokenAccountIdempotent(cargoHold.data.key, mint)
+      try {
+        await getAccount(this.getSageGame().getProvider().connection, ixFleetCargoHoldMintAta.address);
+      } catch (e) {
+        ixs.push(ixFleetCargoHoldMintAta.instruction);
+      }
+      // console.log(ixFleetCargoPodMintAta)
 
       // Calc the amount to deposit
       let amountToDeposit = BN.min(
         amount,
-        cargoPod.data.loadedAmount > 0
-          ? new BN(cargoPod.data.maxCapacity).sub(
-              new BN(cargoPod.data.loadedAmount)
+        cargoHold.data.loadedAmount.gt(new BN(0))
+          ? cargoHold.data.maxCapacity.sub(
+              cargoHold.data.loadedAmount
             )
-          : new BN(cargoPod.data.maxCapacity)
+          : cargoHold.data.maxCapacity
       );
-      //console.log(amountToDeposit.toNumber())
+      // console.log(cargoHold.data.loadedAmount.toNumber())
+      amountToDeposit = amountToDeposit.div(resourceSpaceInCargoPerUnit)
+      // console.log(amountToDeposit.toNumber())
       if (amountToDeposit.eq(new BN(0))) return { type: "FleetCargoPodIsFull" as const };
       amountToDeposit = BN.min(amountToDeposit, new BN(starbasePodMintAtaBalance));
       if (amountToDeposit.eq(new BN(0))) return { type: "StarbaseCargoIsEmpty" as const };
@@ -655,11 +662,11 @@ export class SageFleet {
         this.player.getStarbasePlayerAddress(currentStarbase.data),
         this.fleet.key,
         starbasePlayerPod.data.key,
-        cargoPod.data.key,
-        this.getSageGame().getCargoTypeByMint(mint),
+        cargoHold.data.key,
+        this.getSageGame().getCargoTypeKeyByMint(mint),
         this.getSageGame().getCargoStatsDefinition().key,
         starbasePodMintAta,
-        ixFleetCargoPodMintAta.address,
+        ixFleetCargoHoldMintAta.address,
         mint,
         this.getSageGame().getGame().key,
         this.getSageGame().getGameState().key,
@@ -677,9 +684,10 @@ export class SageFleet {
       const ixs: InstructionReturn[] = [];
       const mint = this.getSageGame().getResourceMintByName(resourceName);
 
-      const fleetCurrentSector = this.getCurrentSector();
+      const fleetCurrentSector = await this.getCurrentSectorAsync();
+      if (fleetCurrentSector.type !== "Success") return fleetCurrentSector;
 
-      const currentStarbase = this.getSageGame().getStarbaseBySector(fleetCurrentSector);
+      const currentStarbase = this.getSageGame().getStarbaseBySector(fleetCurrentSector.data);
       if (currentStarbase.type !== "Success") return currentStarbase;
 
       const starbasePlayerPod = await this.player.getStarbasePlayerPodAsync(currentStarbase.data);
@@ -687,7 +695,11 @@ export class SageFleet {
       // console.log(starbasePlayerPod)
 
       const ixStarbasePodMintAta = this.getSageGame().ixCreateAssociatedTokenAccountIdempotent(starbasePlayerPod.data.key, mint)
-      ixs.push(ixStarbasePodMintAta.instruction);
+      try {
+        await getAccount(this.getSageGame().getProvider().connection, ixStarbasePodMintAta.address);
+      } catch (e) {
+        ixs.push(ixStarbasePodMintAta.instruction);
+      }
 
       // console.log(mintAtaKey)
 
@@ -695,12 +707,12 @@ export class SageFleet {
       if (cargoPod.type !== "Success" && cargoPod.type !== "CargoPodIsEmpty") return cargoPod;
       // console.log(cargoHold)
 
-      const [fleetCargoPodResourceData] = cargoPod.data.loadedResources.filter((item) => item.mint.equals(mint));
+      const [fleetCargoPodResourceData] = cargoPod.data.resources.filter((item) => item.mint.equals(mint));
       if (!fleetCargoPodResourceData) return { type: "NoResourcesToWithdraw" as const };
       // console.log(mintAta)
 
       // Calc the amount to withdraw
-      let amountToWithdraw = BN.min(amount, new BN(fleetCargoPodResourceData.tokenAccount.amount));
+      let amountToWithdraw = BN.min(amount, new BN(fleetCargoPodResourceData.amount));
       if (amountToWithdraw.eq(new BN(0))) return { type: "NoResourcesToWithdraw" as const };
 
       // console.log(amountToWithdraw.toNumber())
@@ -719,9 +731,9 @@ export class SageFleet {
         this.fleet.key,
         cargoPod.data.key,
         starbasePlayerPod.data.key,
-        this.getSageGame().getCargoTypeByMint(mint),
+        this.getSageGame().getCargoTypeKeyByMint(mint),
         this.getSageGame().getCargoStatsDefinition().key,
-        fleetCargoPodResourceData.tokenAccount.address,
+        fleetCargoPodResourceData.tokenAccountKey,
         ixStarbasePodMintAta.address,
         mint,
         this.getSageGame().getGame().key,
@@ -741,9 +753,10 @@ export class SageFleet {
 
       const ixs: InstructionReturn[] = [];
 
-      const fleetCurrentSector = this.getCurrentSector();
+      const fleetCurrentSector = await this.getCurrentSectorAsync();
+      if (fleetCurrentSector.type !== "Success") return fleetCurrentSector;
 
-      const currentStarbase = this.getSageGame().getStarbaseBySector(fleetCurrentSector);
+      const currentStarbase = this.getSageGame().getStarbaseBySector(fleetCurrentSector.data);
       if (currentStarbase.type !== "Success") return currentStarbase;
 
       const starbasePlayerKey = this.player.getStarbasePlayerAddress(currentStarbase.data);
@@ -761,14 +774,14 @@ export class SageFleet {
         ixs.push(ix_0);
       }
 
-      const currentPlanet = this.getSageGame().getPlanetsBySector(fleetCurrentSector, PlanetType.AsteroidBelt);
+      const currentPlanet = this.getSageGame().getPlanetsBySector(fleetCurrentSector.data, PlanetType.AsteroidBelt);
       if (currentPlanet.type !== "Success") return currentPlanet;
 
       const mineableResource = this.getSageGame().getMineItemAndResourceByNameAndPlanetKey(resourceName, currentPlanet.data[0].key);
 
       const fuelTank = this.getFuelTank()
 
-      const [fuelInTankData] = fuelTank.loadedResources.filter((item) => item.mint.equals(this.getSageGame().getResourcesMint().Fuel));
+      const [fuelInTankData] = fuelTank.resources.filter((item) => item.mint.equals(this.getSageGame().getResourcesMint().Fuel));
       if (!fuelInTankData) return { type: "FleetCargoPodTokenAccountNotFound" as const };
 
       const input: StartMiningAsteroidInput = { keyIndex: 0 };
@@ -791,7 +804,7 @@ export class SageFleet {
         currentPlanet.data[0].key,
         this.getSageGame().getGameState().key,
         this.getSageGame().getGame().key,
-        fuelInTankData.tokenAccount.address,
+        fuelInTankData.tokenAccountKey,
         input
       );
       ixs.push(ix_1);
@@ -806,9 +819,10 @@ export class SageFleet {
 
       const ixs: InstructionReturn[] = [];
 
-      const fleetCurrentSector = this.getCurrentSector();
+      const fleetCurrentSector = await this.getCurrentSectorAsync();
+      if (fleetCurrentSector.type !== "Success") return fleetCurrentSector;
 
-      const currentStarbase = this.getSageGame().getStarbaseBySector(fleetCurrentSector);
+      const currentStarbase = this.getSageGame().getStarbaseBySector(fleetCurrentSector.data);
       if (currentStarbase.type !== "Success") return currentStarbase;
 
       if (!this.fleet.state.MineAsteroid)
@@ -827,29 +841,24 @@ export class SageFleet {
 
       const cargoHold = this.getCargoHold()
 
-      const fleetCargoHoldMintAta = this.getSageGame().ixCreateAssociatedTokenAccountIdempotent(cargoHold.key, miningMint)
-      ixs.push(fleetCargoHoldMintAta.instruction);
+      const ixFleetCargoHoldMintAta = this.getSageGame().ixCreateAssociatedTokenAccountIdempotent(cargoHold.key, miningMint)
+      try {
+        await getAccount(this.getSageGame().getProvider().connection, ixFleetCargoHoldMintAta.address);
+      } catch (e) {
+        ixs.push(ixFleetCargoHoldMintAta.instruction);
+      }
 
-      /* const mintAta = cargoPod.data.loadedResources.get(miningMint.toBase58());
-
-      let mintAtaKey = mintAta ? mintAta.address : (() => {
-        const ix_0 = this.getSageGame().ixCreateAssociatedTokenAccountIdempotent(cargoPod.data.key, miningMint)
-        ixs.push(ix_0.instruction);
-        return ix_0.address;
-      })();
- */
-
-      const [foodInCargoData] = cargoHold.loadedResources.filter((item) => item.mint.equals(this.getSageGame().getResourcesMint().Food));
+      const [foodInCargoData] = cargoHold.resources.filter((item) => item.mint.equals(this.getSageGame().getResourcesMint().Food));
       if (!foodInCargoData) return { type: "FleetCargoPodTokenAccountNotFound" as const };
 
       const ammoBank = this.getAmmoBank()
 
-      const [ammoInBankData] = ammoBank.loadedResources.filter((item) => item.mint.equals(this.getSageGame().getResourcesMint().Ammo));
+      const [ammoInBankData] = ammoBank.resources.filter((item) => item.mint.equals(this.getSageGame().getResourcesMint().Ammo));
       if (!ammoInBankData) return { type: "FleetCargoPodTokenAccountNotFound" as const };
 
       const fuelTank = this.getFuelTank();
 
-      const [fuelInTankData] = fuelTank.loadedResources.filter((item) => item.mint.equals(this.getSageGame().getResourcesMint().Fuel));
+      const [fuelInTankData] = fuelTank.resources.filter((item) => item.mint.equals(this.getSageGame().getResourcesMint().Fuel));
       if (!fuelInTankData) return { type: "FleetCargoPodTokenAccountNotFound" as const };
 
       const miningResourceFrom = getAssociatedTokenAddressSync(miningMint, miningMineItem.data.key, true);
@@ -866,14 +875,14 @@ export class SageFleet {
         this.fleet.data.ammoBank,
         this.getSageGame().getCargoTypeByResourceName(ResourceName.Food),
         this.getSageGame().getCargoTypeByResourceName(ResourceName.Ammo),
-        this.getSageGame().getCargoTypeByMint(miningMineItem.data.data.mint),
+        this.getSageGame().getCargoTypeKeyByMint(miningMineItem.data.data.mint),
         this.getSageGame().getCargoStatsDefinition().key,
         this.getSageGame().getGameState().key,
         this.getSageGame().getGame().key,
-        foodInCargoData.tokenAccount.address,
-        ammoInBankData.tokenAccount.address,
+        foodInCargoData.tokenAccountKey,
+        ammoInBankData.tokenAccountKey,
         miningResourceFrom,
-        fleetCargoHoldMintAta.address,
+        ixFleetCargoHoldMintAta.address,
         this.getSageGame().getResourcesMint().Food,
         this.getSageGame().getResourcesMint().Ammo
       );
@@ -906,7 +915,7 @@ export class SageFleet {
         this.getSageGame().getGamePoints().miningXpCategory.modifier,
         this.getSageGame().getGameState().key,
         this.getSageGame().getGame().key,
-        fuelInTankData.tokenAccount.address,
+        fuelInTankData.tokenAccountKey,
         this.getSageGame().getResourcesMint().Fuel,
         input,
       );
@@ -920,12 +929,18 @@ export class SageFleet {
     async ixDockToStarbase() {
       const update = await this.update();
       if (update.type !== "Success") return { type: "FleetFailedToUpdate" as const };
-
+      
       const ixs: InstructionReturn[] = [];
+      
+      const fleetCurrentSector = await this.getCurrentSectorAsync();
+      if (fleetCurrentSector.type !== "Success") return fleetCurrentSector;
+      /* console.log(
+        "FleetCurrentSector:", 
+        fleetCurrentSector.data.coordinates[0].toNumber(),
+        fleetCurrentSector.data.coordinates[1].toNumber()
+      ) */
 
-      const fleetCurrentSector = this.getCurrentSector();
-
-      const currentStarbase = this.getSageGame().getStarbaseBySector(fleetCurrentSector);
+      const currentStarbase = this.getSageGame().getStarbaseBySector(fleetCurrentSector.data);
       if (currentStarbase.type !== "Success") return currentStarbase;
 
       const starbasePlayerKey = this.player.getStarbasePlayerAddress(currentStarbase.data);
@@ -996,9 +1011,10 @@ export class SageFleet {
 
       const ixs: InstructionReturn[] = [];
 
-      const fleetCurrentSector = this.getCurrentSector();
+      const fleetCurrentSector = await this.getCurrentSectorAsync();
+      if (fleetCurrentSector.type !== "Success") return fleetCurrentSector;
 
-      const currentStarbase = this.getSageGame().getStarbaseBySector(fleetCurrentSector);
+      const currentStarbase = this.getSageGame().getStarbaseBySector(fleetCurrentSector.data);
       if (currentStarbase.type !== "Success") return currentStarbase;
 
       const starbasePlayerKey = this.player.getStarbasePlayerAddress(currentStarbase.data);
@@ -1032,10 +1048,10 @@ export class SageFleet {
       
       const fuelTank = this.getFuelTank()
       
-      const [fuelInTankData] = fuelTank.loadedResources.filter((item) => item.mint.equals(fuelMint));
+      const [fuelInTankData] = fuelTank.resources.filter((item) => item.mint.equals(fuelMint));
       if (!fuelInTankData) return { type: "FleetFuelTankIsEmpty" as const };
 
-      if (new BN(fuelInTankData.tokenAccount.amount).lt(fuelNeeded)) 
+      if (fuelInTankData.amount.lt(fuelNeeded)) 
         return { type: "NoEnoughFuelToWarp" as const };
 
       const input: WarpToCoordinateInput = { keyIndex: 0, toSector: sector.data.coordinates as [BN, BN] };
@@ -1045,23 +1061,6 @@ export class SageFleet {
       if (ix_movement.type !== "Success") return ix_movement;
       if (ix_movement.ixs.length > 0) ixs.push(...ix_movement.ixs);
 
-      /* console.log(
-        // this.getSageGame().getSageProgram(),
-        // this.getSageGame().getAsyncSigner(),
-        this.player.getPlayerProfile().key,
-        this.player.getProfileFactionAddress(),
-        this.fleet.key,
-        fuelTank.data.key,
-        this.getSageGame().getCargoTypeByMint(fuelMint),
-        this.getSageGame().getCargoStatsDefinition().key,
-        fuelInTankData.tokenAccount.address,
-        fuelMint,
-        this.getSageGame().getGameState().key,
-        this.getSageGame().getGame().key,
-        // this.getSageGame().getCargoProgram(),
-        input
-      ) */
-
       const ix_0 = Fleet.warpToCoordinate(
         this.getSageGame().getSageProgram(),
         this.getSageGame().getAsyncSigner(),
@@ -1069,9 +1068,9 @@ export class SageFleet {
         this.player.getProfileFactionAddress(),
         this.fleet.key,
         fuelTank.key,
-        this.getSageGame().getCargoTypeByMint(fuelMint),
+        this.getSageGame().getCargoTypeKeyByMint(fuelMint),
         this.getSageGame().getCargoStatsDefinition().key,
-        fuelInTankData.tokenAccount.address,
+        fuelInTankData.tokenAccountKey,
         fuelMint,
         this.getSageGame().getGameState().key,
         this.getSageGame().getGame().key,
@@ -1094,10 +1093,10 @@ export class SageFleet {
       
       const fuelTank = this.getFuelTank();
       
-      const [fuelInTankData] = fuelTank.loadedResources.filter((item) => item.mint.equals(fuelMint));
+      const [fuelInTankData] = fuelTank.resources.filter((item) => item.mint.equals(fuelMint));
       if (!fuelInTankData) return { type: "FleetFuelTankIsEmpty" as const };
 
-      if (new BN(fuelInTankData.tokenAccount.amount).lt(fuelNeeded)) 
+      if (new BN(fuelInTankData.tokenAccountKey).lt(fuelNeeded)) 
         return { type: "NoEnoughFuelToSubwarp" as const };
 
       const input = { keyIndex: 0, toSector: sector.data.coordinates as [BN, BN] } as StartSubwarpInput;
@@ -1131,8 +1130,8 @@ export class SageFleet {
       
       const fuelTank = this.getFuelTank();
       
-      const [fuelInTankData] = fuelTank.loadedResources.filter((item) => item.mint.equals(fuelMint));
-      if (!fuelInTankData || Number(fuelInTankData.tokenAccount.amount) === 0) return { type: "FleetFuelTankIsEmpty" as const };
+      const [fuelInTankData] = fuelTank.resources.filter((item) => item.mint.equals(fuelMint));
+      if (!fuelInTankData || fuelInTankData.amount.eq(new BN(0))) return { type: "FleetFuelTankIsEmpty" as const };
 
       const ix_movement = this.fleet.state.MoveWarp ? 
         [Fleet.moveWarpHandler(
@@ -1155,9 +1154,9 @@ export class SageFleet {
           this.getPlayer().getPlayerProfile().key,
           this.key,
           fuelTank.key,
-          this.getSageGame().getCargoTypeByMint(fuelMint),
+          this.getSageGame().getCargoTypeKeyByMint(fuelMint),
           this.getSageGame().getCargoStatsDefinition().key,
-          fuelInTankData.tokenAccount.address,
+          fuelInTankData.tokenAccountKey,
           fuelMint,
           this.player.getPilotXpKey(),
           this.getSageGame().getGamePoints().pilotXpCategory.category,
@@ -1182,19 +1181,20 @@ export class SageFleet {
       const foodMint = this.getSageGame().getResourceMintByName(ResourceName.Food)
       const sduMint = this.getSageGame().getResourceMintByName(ResourceName.Sdu)
 
-      const fleetCurrentSector = this.getCurrentSector();
+      const fleetCurrentSector = await this.getCurrentSectorAsync();
+      if (fleetCurrentSector.type !== "Success") return fleetCurrentSector;
 
       const cargoHold = this.getCargoHold();
 
       if (this.onlyDataRunner && cargoHold.fullLoad) return { type: "FleetCargoIsFull" as const }
 
       if (!this.onlyDataRunner) {
-        const [foodInCargoData] = cargoHold.loadedResources.filter((item) => item.mint.equals(foodMint));
+        const [foodInCargoData] = cargoHold.resources.filter((item) => item.mint.equals(foodMint));
 
-        if (!foodInCargoData || foodInCargoData.tokenAccount.amount < this.stats.miscStats.scanCost) 
+        if (!foodInCargoData || foodInCargoData.amount.lt(new BN(this.stats.miscStats.scanCost))) 
           return { type: "NoEnoughFood" as const }
 
-        if (cargoHold.fullLoad && Number(foodInCargoData.tokenAccount.amount) !== cargoHold.maxCapacity)
+        if (cargoHold.fullLoad && !foodInCargoData.amount.eq(cargoHold.maxCapacity))
           return { type: "FleetCargoIsFull" as const }
       }
 
@@ -1204,8 +1204,12 @@ export class SageFleet {
         true
       );
 
-      const sduTokenTo = this.getSageGame().ixCreateAssociatedTokenAccountIdempotent(cargoHold.key, sduMint)
-      ixs.push(sduTokenTo.instruction);
+      const ixSduTokenTo = this.getSageGame().ixCreateAssociatedTokenAccountIdempotent(cargoHold.key, sduMint)
+      try {
+        await getAccount(this.getSageGame().getProvider().connection, ixSduTokenTo.address);
+      } catch (e) {
+        ixs.push(ixSduTokenTo.instruction);
+      }
 
       const foodTokenFrom = getAssociatedTokenAddressSync(
         foodMint,
@@ -1228,14 +1232,14 @@ export class SageFleet {
         this.player.getPlayerProfile().key,
         this.player.getProfileFactionAddress(),
         this.fleet.key,
-        fleetCurrentSector.key,
+        fleetCurrentSector.data.key,
         this.getSageGame().getSuvreyDataUnitTracker().key,
         cargoHold.key,
         this.getSageGame().getCargoTypeByResourceName(ResourceName.Sdu),
         this.getSageGame().getCargoTypeByResourceName(ResourceName.Food),
         this.getSageGame().getCargoStatsDefinition().key,
         sduTokenFrom,
-        sduTokenTo.address,
+        ixSduTokenTo.address,
         foodTokenFrom,
         foodMint,
         this.player.getDataRunningXpKey(),

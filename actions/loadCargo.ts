@@ -30,11 +30,11 @@ export const loadCargo = async (
 
     // blocking errors or failures that require retrying the entire action
     default:
-      if (ix.type !== "Success") throw new Error(ix.type);
+      if (ix.type !== "Success") throw new Error(ix.type); // retry entire action
   }
 
   // build and send transactions
-  const sdt = await fleet.getSageGame().buildAndSendDynamicTransactions(ix.ixs, false);
+  const sdt = await fleet.getSageGame().buildAndSendDynamicTransactions(ix.ixs, true);
   if (sdt.type !== "Success") throw new Error(sdt.type); // retry entire action
 
   // other

@@ -1,119 +1,22 @@
 #!/usr/bin/env node
 
-// import { Connection, Keypair } from "@solana/web3.js";
 import { version } from "./package.json";
-/* import { cargo } from "./scripts/cargo";
-import { mining } from "./scripts/mining";
-import { SageFleetHandler } from "./src/SageFleetHandler"; */
 import { SageGame } from "./src/SageGame";
 import { SagePlayer } from "./src/SagePlayer";
 import { getConnection } from "./utils/inputs/getConnection";
 import { getKeypairFromSecret } from "./utils/inputs/getKeypairFromSecret";
 import { inputProfile } from "./utils/inputs/inputProfile";
-// import { loadGame } from "./utils/inputs/loadGame";
 import { resetProfile } from "./utils/inputs/resetProfile";
-/* import { setActivity } from "./utils/inputs/setActivity";
-import { setCycles } from "./utils/inputs/setCycles";
-import { setFleet } from "./utils/inputs/setFleet"; */
 import { setStart } from "./utils/inputs/setStart";
 import { setupProfileData } from "./utils/inputs/setupProfileData";
-/* import { SectorCoordinates } from "./common/types";
-import { SagePlayer } from "./src/SagePlayer"; */
 import { miningV2 } from "./scripts/miningV2";
 import { cargoV2 } from "./scripts/cargoV2";
-import { PlanetType } from "@staratlas/sage";
 import { setPriority } from "./utils/inputsV2/setPriority";
 import { PriorityLevel } from "./common/constants";
 import { setCustomPriority } from "./utils/inputsV2/setCustomPriority";
 import { cargoMiningV2 } from "./scripts/cargoMiningV2";
 import { scanV2 } from "./scripts/scanV2";
-// import { SageFleet } from "./src/SageFleet";
-
-/* const main = async () => {
-  console.log(`Welcome to Ultron ${version}!`);
-
-  const { startOption } = await setStart();
-
-  if (startOption === "Settings") {
-    await resetProfile();
-    return;
-  }
-
-  // qui l'utente sceglie il profilo desiderato
-  const { profile } = await inputProfile();
-
-  // qui si controlla se il profilo esiste già, se no, lo si crea
-  await setupProfileData(profile);
-
-  // qui si impostano il keypair e la connection
-  const keypair = await getKeypairFromSecret(profile);
-
-  const connection = getConnection(profile);
-
-  // FIX: se la connessione non è andata a buon fine, Ultron riprova
-  if (connection.type !== "Success") {
-    return;
-  }
-
-  // qui comincia lo script
-  const sageGameHandler = await loadGame(keypair, connection.result);
-  const sageFleetHandler = new SageFleetHandler(sageGameHandler);
-  const profilePubkey = await sageGameHandler.getPlayerProfileAddress(
-    keypair.publicKey
-  );
-
-  console.log("You're in! Let's go");
-
-  const qttrBalance = await sageGameHandler.getQuattrinoBalance();
-  if (qttrBalance.type !== "Success" || qttrBalance.tokenBalance == 0) return;
-
-  const fleet = await setFleet(
-    sageGameHandler,
-    sageFleetHandler,
-    profilePubkey
-  );
-  if (fleet.type !== "Success") return;
-
-  const activity = await setActivity();
-
-  const cycles = await setCycles();
-
-  switch (activity) {
-    case "Mining":
-      while (true) {
-        const m = await mining(
-          fleet.fleet,
-          fleet.position,
-          sageGameHandler,
-          sageFleetHandler,
-          cycles
-        );
-        if (m.type !== "Success") console.log(m.type);
-        if (m.type === "Success") break;
-      }
-      break;
-    case "Cargo":
-      while (true) {
-        const c = await cargo(
-          fleet.fleet,
-          fleet.position,
-          sageGameHandler,
-          sageFleetHandler,
-          cycles
-        );
-        if (c.type !== "Success") console.log(c.type);
-        if (c.type === "Success") break;
-      }
-      break;
-    default:
-      return;
-  }
-}; */
-
-/* main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-}); */
+import { setActivityV2 } from "./utils/inputsV2/setActivity";
 
 const test = async () => {
   console.log(`Welcome to Ultron ${version}!`);
@@ -145,11 +48,6 @@ const test = async () => {
     console.log("Connection failed, please retry.")
     return;
   }
-  
-  /* const keypair = Keypair.generate()
-  
-  const connection = new Connection("https://rpc.ironforge.network/mainnet?apiKey=01HR88Y5Z7MNBJ7YPQ2RAP2VNP") */
-
 
   // 1. Setup environment (SageGame.ts) [keypair required]
   const sage = await SageGame.init(keypair, connection.data, { level: priorityFees.priority, value: customPriority });
@@ -164,36 +62,51 @@ const test = async () => {
 
   const player = await SagePlayer.init(sage, playerProfiles.data[0]);
 
+  const activity = await setActivityV2();
+
   /* const userPoints = await player.getUserPointsAsync();
   if (userPoints.type !== "Success") return;
   console.log(userPoints.data) */
 
-  // 3. Play with mining
-  /* const mining = await miningV2(player);
-  if (mining.type !== "Success") {
-    console.log("Mining failed.", mining.type)
-    return;
-  } */
+  switch (activity) {
+    case "Mining":
+      // 3. Play with mining
+      const mining = await miningV2(player);
+      if (mining.type !== "Success") {
+        console.log("Mining failed.", mining.type)
+        return;
+      }
+      break;
 
-  // 4. Play with cargo
-  /* const cargo = await cargoV2(player);
-  if (cargo.type !== "Success") {
-    console.log("Cargo failed.", cargo.type)
-    return;
-  } */
+    case "Cargo":
+      // 4. Play with cargo
+      const cargo = await cargoV2(player);
+      if (cargo.type !== "Success") {
+        console.log("Cargo failed.", cargo.type)
+        return;
+      }
+      break;
 
-  // 5. Play with cargo mining
-  /* const cargoMining = await cargoMiningV2(player);
-  if (cargoMining.type !== "Success") {
-    console.log("Cargo mining failed.", cargoMining.type)
-    return;
-  } */
+    case "Combo":
+      // 5. Play with cargo mining
+      const cargoMining = await cargoMiningV2(player);
+      if (cargoMining.type !== "Success") {
+        console.log("Cargo mining failed.", cargoMining.type)
+        return;
+      }
+      break;
 
-  // 6. Play with scanning
-  const scan = await scanV2(player);
-  if (scan.type !== "Success") {
-    console.log("\nScan failed.", scan.type)
-    return;
+    case "Scan":
+      // 6. Play with scanning
+      const scan = await scanV2(player);
+      if (scan.type !== "Success") {
+        console.log("\nScan failed.", scan.type)
+        return;
+      }
+      break;
+
+    default:
+      return;
   }
 
   // 7. Play with crafting (SageCrafting.ts)

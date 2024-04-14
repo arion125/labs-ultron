@@ -30,7 +30,7 @@ export const unloadCargo = async (
   }
 
   // build and send transactions
-  const sdt = await fleet.getSageGame().buildAndSendDynamicTransactions(ix.ixs, false);
+  const sdt = await fleet.getSageGame().buildAndSendDynamicTransactions(ix.ixs, true);
   if (sdt.type !== "Success") throw new Error(sdt.type); // retry entire action
 
   // other

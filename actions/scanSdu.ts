@@ -35,7 +35,7 @@ export const scanSdu = async (
   if (sdt.type !== "Success") throw new Error(sdt.type); // retry entire action
 
   // other
-  console.log(`\nScan completed!`);
+  console.log(`Scan completed!`);
   console.log(`\nWaiting Scan Cooldown for ${fleet.getStats().miscStats.scanCoolDown} seconds...`);
   
   await wait(fleet.getStats().miscStats.scanCoolDown);

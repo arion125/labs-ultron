@@ -27,7 +27,7 @@ export const startMining = async (
   }
 
   // build and send transactions
-  const sdt = await fleet.getSageGame().buildAndSendDynamicTransactions(ix.ixs, false);
+  const sdt = await fleet.getSageGame().buildAndSendDynamicTransactions(ix.ixs, resourceName !== ResourceName.Hydrogen);
   if (sdt.type !== "Success") throw new Error(sdt.type); // retry entire action
 
   // other

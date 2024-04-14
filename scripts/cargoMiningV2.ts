@@ -83,31 +83,31 @@ export const cargoMiningV2 = async (
   );
   
   const fuelNeeded = miningSessionData.fuelNeeded + goFuelNeeded + backFuelNeeded + 10000;
-  console.log("Fuel needed:", fuelNeeded);
+  // console.log("Fuel needed:", fuelNeeded);
 
   const fuelTank = fleet.data.getFuelTank();
 
   const ammoBank = fleet.data.getAmmoBank()
 
   const cargoHold = fleet.data.getCargoHold();
-  const [foodInCargoData] = cargoHold.loadedResources.filter((item) => item.mint.equals(fleet.data.getSageGame().getResourcesMint().Food));
+  const [foodInCargoData] = cargoHold.resources.filter((item) => item.mint.equals(fleet.data.getSageGame().getResourcesMint().Food));
 
   // 8. start cargo mining loop
   for (let i = 0; i < cycles; i++) {
     // 1. load fuel
-    if (fuelTank.loadedAmount < fuelNeeded) {
+    if (fuelTank.loadedAmount.lt(new BN(fuelNeeded))) {
       await actionWrapper(loadCargo, fleet.data, ResourceName.Fuel, CargoPodType.FuelTank, new BN(MAX_AMOUNT));
     }
 
     // 2. load ammo
-    if (ammoBank.loadedAmount < miningSessionData.ammoNeeded) {
+    if (ammoBank.loadedAmount.lt(new BN(miningSessionData.ammoNeeded))) {
       await actionWrapper(loadCargo, fleet.data, ResourceName.Ammo, CargoPodType.AmmoBank, new BN(MAX_AMOUNT));
     }
 
     // 3. load food
     if (foodInCargoData) {
-      if (Number(foodInCargoData.tokenAccount.amount || 0) < miningSessionData.foodNeeded) {
-        await actionWrapper(loadCargo, fleet.data, ResourceName.Food, CargoPodType.CargoHold, new BN(miningSessionData.foodNeeded - Number(foodInCargoData.tokenAccount.amount || 0)));
+      if (Number(foodInCargoData.amount || 0) < miningSessionData.foodNeeded) {
+        await actionWrapper(loadCargo, fleet.data, ResourceName.Food, CargoPodType.CargoHold, new BN(miningSessionData.foodNeeded - Number(foodInCargoData.amount || 0)));
       }
     } else {
       await actionWrapper(loadCargo, fleet.data, ResourceName.Food, CargoPodType.CargoHold, new BN(miningSessionData.foodNeeded));

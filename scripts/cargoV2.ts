@@ -32,7 +32,7 @@ export const cargoV2 = async (
   const fleetCurrentSector = await fleet.data.getCurrentSector();
 
   // 3. set cargo sector
-  const starbase = await setStarbaseV2(fleet.data);
+  const starbase = await setStarbaseV2(fleet.data, true);
   if (starbase.type !== "Success") return starbase;
 
   const sector = player.getSageGame().getSectorByCoords(starbase.data.data.sector as SectorCoordinates);
@@ -68,16 +68,27 @@ export const cargoV2 = async (
   );
   
   const fuelNeeded = goFuelNeeded + backFuelNeeded + 10000;
-  console.log("Fuel needed:", fuelNeeded);
+  // console.log("Fuel needed:", fuelNeeded);
 
   const fuelTank = await fleet.data.getFuelTank();
 
-  const cargoHold = await fleet.data.getCargoHold();
-
   // 7. start cargo loop
   for (let i = 0; i < cycles; i++) {
+    // 0. Dock to starbase (optional)
+    if (
+      !fleet.data.getCurrentState().StarbaseLoadingBay && 
+      fleet.data.getSageGame().getStarbaseBySector(fleetCurrentSector).type === "Success"
+    ) {
+      await actionWrapper(dockToStarbase, fleet.data);
+    } else if (
+      !fleet.data.getCurrentState().StarbaseLoadingBay && 
+      fleet.data.getSageGame().getStarbaseBySector(fleetCurrentSector).type !== "Success"
+    ) {
+      return fleet.data.getSageGame().getStarbaseBySector(fleetCurrentSector);
+    }
+
     // 1. load fuel
-    if (fuelTank.loadedAmount < fuelNeeded) {
+    if (fuelTank.loadedAmount.lt(new BN(fuelNeeded))) {
       await actionWrapper(loadCargo, fleet.data, ResourceName.Fuel, CargoPodType.FuelTank, new BN(MAX_AMOUNT));
     }
 

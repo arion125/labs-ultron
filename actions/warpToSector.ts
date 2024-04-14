@@ -1,6 +1,7 @@
 import { wait } from "../utils/actions/wait";
 import { SageFleet } from "../src/SageFleet";
 import { Sector } from "@staratlas/sage";
+import { BN } from "@staratlas/anchor";
 
 export const warpToSector = async (
   fleet: SageFleet,
@@ -12,11 +13,12 @@ export const warpToSector = async (
   console.log(`\nStart warp...`);
 
   // data
+
   const sectorsDistance = fleet.getSageGame().calculateDistanceBySector(fleet.getCurrentSector(), sector);
   const timeToWarp = fleet.calculateWarpTimeWithDistance(sectorsDistance);
 
   // instruction
-  const ix = await fleet.ixWarpToSector(sector, fuelNeeded);
+  const ix = await fleet.ixWarpToSector(sector, new BN(fuelNeeded));
 
   // issues and errors handling
   switch (ix.type) {
@@ -30,7 +32,7 @@ export const warpToSector = async (
   }
 
   // build and send transactions
-  const sdt = await fleet.getSageGame().buildAndSendDynamicTransactions(ix.ixs, false);
+  const sdt = await fleet.getSageGame().buildAndSendDynamicTransactions(ix.ixs, true);
   if (sdt.type !== "Success") throw new Error(sdt.type); // retry entire action
 
   // other

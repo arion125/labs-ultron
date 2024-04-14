@@ -6,18 +6,15 @@ import { unloadCargo } from "../actions/unloadCargo";
 import { warpToSector } from "../actions/warpToSector";
 import { MAX_AMOUNT, MovementType } from "../common/constants";
 import { NotificationMessage } from "../common/notifications";
-import { InputResourcesForCargo, SectorCoordinates } from "../common/types";
 import { actionWrapper } from "../utils/actions/actionWrapper";
 import { sendNotification } from "../utils/actions/sendNotification";
 import { SagePlayer } from "../src/SagePlayer";
 import { setFleetV2 } from "../utils/inputsV2/setFleet";
 import { setCycles } from "../utils/inputs/setCycles";
-import { setStarbaseV2 } from "../utils/inputsV2/setStarbase";
 import { setMovementTypeV2 } from "../utils/inputsV2/setMovementType";
 import { BN } from "@staratlas/anchor";
 import { ResourceName } from "../src/SageGame";
 import { CargoPodType } from "../src/SageFleet";
-import { setResourcesAmountV2 } from "../utils/inputsV2/setResourcesAmount";
 import { setScanCoordinates } from "../utils/inputsV2/setScanCoordinates";
 import { scanSdu } from "../actions/scanSdu";
 
@@ -65,16 +62,14 @@ export const scanV2 = async (
   );
   
   const fuelNeeded = goFuelNeeded + backFuelNeeded + 10000;
-  console.log("Fuel needed:", fuelNeeded);
+  // console.log("Fuel needed:", fuelNeeded);
 
   const fuelTank = fleet.data.getFuelTank();
 
-  const cargoHold = fleet.data.getCargoHold();
-
   // 6. start scan loop
   for (let i = 0; i < cycles; i++) {
-    /* // 1. load fuel
-    if (fuelTank.loadedAmount < fuelNeeded) {
+    // 1. load fuel
+    if (fuelTank.loadedAmount.lt(new BN(fuelNeeded))) {
       await actionWrapper(loadCargo, fleet.data, ResourceName.Fuel, CargoPodType.FuelTank, new BN(MAX_AMOUNT));
     }
 
@@ -84,7 +79,7 @@ export const scanV2 = async (
     }
     
     // 3. undock from starbase
-    await actionWrapper(undockFromStarbase, fleet.data); */
+    await actionWrapper(undockFromStarbase, fleet.data);
 
     // 4. move to sector (->)
     if (!isSameSector && movementGo && movementGo.movement === MovementType.Warp) {

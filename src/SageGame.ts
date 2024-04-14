@@ -1,5 +1,5 @@
 import { Provider, AnchorProvider, Program, Wallet, BN } from "@staratlas/anchor";
-import { Connection, Finality, Keypair, PublicKey, SolanaJSONRPCError, TransactionError, VersionedTransaction, } from "@solana/web3.js";
+import { Connection, Finality, Keypair, PublicKey, VersionedTransaction, } from "@solana/web3.js";
 import { readFromRPCOrError, readAllFromRPC, stringToByteArray, InstructionReturn } from "@staratlas/data-source";
 import { PLAYER_PROFILE_IDL, PlayerProfileIDLProgram, } from "@staratlas/player-profile";
 import { Fleet, Game, GameState, MineItem, Planet, PlanetType, Points, Resource, SAGE_IDL, SageIDLProgram, Sector, Star, Starbase, SurveyDataUnitTracker, calculateDistance, getCargoPodsByAuthority, sageErrorMap } from "@staratlas/sage";
@@ -10,10 +10,8 @@ import { PlayerProfile } from "@staratlas/player-profile";
 import { SectorCoordinates } from "../common/types";
 import { AsyncSigner, byteArrayToString, getParsedTokenAccountsByOwner, createAssociatedTokenAccountIdempotent, keypairToAsyncSigner, sendTransaction, buildOptimalDynamicTransactions, TransactionReturn, getSimulationUnits } from "@staratlas/data-source";
 import { createBurnInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
-import { CustomPriorityFee, PriorityLevel, PriorityLevelValue, quattrinoTokenPubkey } from "../common/constants";
+import { CustomPriorityFee, PriorityLevel, PriorityLevelValue, quattrinoTokenPubkey, starbasesInfo } from "../common/constants";
 import { PointsIDLProgram, POINTS_IDL, PointsCategory } from "@staratlas/points"
-import bs58 from "bs58";
-import { SageFleet } from "./SageFleet";
 
 export enum ResourceName {
   Food = "Food",
@@ -125,13 +123,11 @@ export class SageGame {
     private pointsCategories!: PointsCategory[];
     private surveyDataUnitTracker!: SurveyDataUnitTracker;
     
-    private playerKeypair!: Keypair;
     private funder: AsyncSigner;
     private connection!: Connection;
     private customPriorityFee: CustomPriorityFee = { level: PriorityLevel.Custom, value: 0 };
 
     private constructor(signer: Keypair, connection: Connection, customPriorityFee: CustomPriorityFee) {
-        this.playerKeypair = signer;
         this.connection = connection;
         this.provider = new AnchorProvider(
             connection,
@@ -220,7 +216,7 @@ export class SageGame {
     }
 
     getPlayerPublicKey() {
-      return this.playerKeypair.publicKey;
+      return this.funder.publicKey();
     }
 
     getConnection() {
@@ -324,7 +320,7 @@ export class SageGame {
             "confirmed",
           );
 
-          const gameStates = []
+          const gameStates: GameState[] = []
           for (const gameState of fetchGameState) {
             if (gameState.type !== "ok") throw new Error()
             gameStates.push(gameState.data)
@@ -349,7 +345,7 @@ export class SageGame {
           "confirmed",
         );
 
-        const pointsCategories = []
+        const pointsCategories: PointsCategory[] = []
         for (const pointsCategory of fetchPointsCategories) {
           if (pointsCategory.type !== "ok") throw new Error()
           pointsCategories.push(pointsCategory.data)
@@ -579,6 +575,14 @@ export class SageGame {
 
     getStarbases() {
       return this.starbases;
+    }
+
+    getStarbasePrettyName(starbase: Starbase) {
+      const starbaseInfo = starbasesInfo;
+      const starbaseCoords = starbase.data.sector as SectorCoordinates;
+      const [sb] = starbaseInfo.filter((sb) => sb.coords[0].eq(starbaseCoords[0]) && sb.coords[1].eq(starbaseCoords[1]));
+      if (!sb) return "";
+      return sb.name;
     }
 
     async getStarbaseBySectorAsync(sector: Sector) {
@@ -1021,7 +1025,7 @@ export class SageGame {
       return true;
     }
 
-    getCargoTypeByMint(mint: PublicKey) {
+    getCargoTypeKeyByMint(mint: PublicKey) {
       const [cargoType] = CargoType.findAddress(
         this.cargoProgram,
         this.cargoStatsDefinition.key,
@@ -1030,6 +1034,22 @@ export class SageGame {
       );
   
       return cargoType;
+    }
+
+    async getCargoTypeByMintAsync(mint: PublicKey) {
+      const cargoTypeKey = this.getCargoTypeKeyByMint(mint);
+      try {
+        const cargoTypeAccount = await readFromRPCOrError(
+          this.provider.connection,
+          this.cargoProgram,
+          cargoTypeKey,
+          CargoType,
+          "confirmed"
+        );
+        return { type: "Success" as const, data: cargoTypeAccount };
+      } catch (e) {
+        return { type: "CargoTypeNotFound" as const };
+      }
     }
 
     getCargoTypeByResourceName(resourceName: ResourceName) {
@@ -1056,7 +1076,7 @@ export class SageGame {
       return getAssociatedTokenAddressSync(mint, owner, true)
     }
 
-    private delay(ms: number) {
+    delay(ms: number) {
       return new Promise(resolve => setTimeout(resolve, ms));
     }
     /** END HELPERS */
@@ -1241,27 +1261,27 @@ export class SageGame {
               // If transaction failed to send
               if (result.status === "rejected") {
                   const reason = this.parseError(result.reason);
-                  console.error(`\nTransaction #${i} failed on attempt ${attempts + 1}: ${reason}`);
+                  console.error(`> Transaction #${i} failed on attempt ${attempts + 1}: ${reason}`);
                   const newBuild = await this.buildDynamicTransactions(instructions, fee);
                   if (newBuild.type === "Success") {
                       toProcess.push(newBuild.data[i]);
                   } else {
-                      console.error(`\nFailed to rebuild transaction #${i}`);
+                      console.error(`> Failed to rebuild transaction #${i}`);
                   }
               } 
               // If transaction sent, confirmed but not OK
               else if (result.status === "fulfilled" && !result.value.value.isOk()) {
-                  console.error(`\nTransaction #${i} completed but not OK, rebuilding and retrying...`);
+                  console.error(`> Transaction #${i} completed but not OK, rebuilding and retrying...`);
                   const newBuild = await this.buildDynamicTransactions(instructions, fee);
                   if (newBuild.type === "Success") {
                       toProcess.push(newBuild.data[i]);
                   } else {
-                      console.error(`\nFailed to rebuild transaction #${i}`);
+                      console.error(`> Failed to rebuild transaction #${i}`);
                   }
               } 
               // If transaction sent, confirmed and OK
               else if (result.status === "fulfilled" && result.value.value.isOk()) {
-                  console.log(`\nTransaction #${i} completed!`);
+                  console.log(`> Transaction #${i} completed!`);
                   txSignatures.push(result.value.value.value);
               }
     
@@ -1286,10 +1306,12 @@ export class SageGame {
     }
 
     private parseError(reason: any): string {
-        const errorCode = reason && reason.message ? parseInt(reason.message.split(" ").pop().trim()) : null;
-        if (errorCode && errorCode >= 6000 && reason.logs && reason.logs.length > 6) {
-          const errorMessage: string[] = reason.logs[6].split(".");
-          return errorMessage.slice(1, errorMessage.length - 1).map(item => item.trim()).join(" - ");
+        const errorCode = reason ? parseInt(reason.message.split(" ").pop().trim()) : null;
+        if (errorCode && errorCode >= 6000/*  && reason.logs && reason.logs.length > 6 */) {
+          const [error] = Object.values(sageErrorMap).filter(item => item.code == errorCode);
+          return error ? error.msg : reason;
+          /* const errorMessage: string[] = reason.logs[6].split(".");
+          return errorMessage.slice(1, errorMessage.length - 1).map(item => item.trim()).join(" - "); */
         } else {
           return reason;
         }
