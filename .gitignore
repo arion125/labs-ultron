@@ -118,6 +118,7 @@ out
 dist
 dist-dev
 dist-prod
+dist*
 
 # Gatsby files
 
